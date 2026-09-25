@@ -1,0 +1,20 @@
+{
+  "name": "phuoc-an-warehouse-twin",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Interactive 3D light digital twin of the Phuoc An Port F1 / F2 warehouse project",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:single": "vite build --mode single",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.1",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}
