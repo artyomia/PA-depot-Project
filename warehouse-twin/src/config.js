@@ -73,8 +73,20 @@ export const CONFIG = {
       { dir: 'ns', x: -343000, width: 15000 },
       { dir: 'ew', z: -181000, width: 15000, x0: -343000 },
     ],
-    // Landscaped park in the NW corner of the yard (to the D1 road).
-    greenNW: { x0: -545000, x1: -350500, z0: -191750, z1: 6000 },
+    // Landscaped park in the NW corner of the yard (to the D1 road). East edge per master plan REV02.
+    greenNW: { x0: -545000, x1: -409000, z0: -191750, z1: 6000 },
+    // Tractor parking, trailer drop and EV charging along the east edge of the park (master plan REV02).
+    // Bays run east-west; chargers stand on the park side, one dual charger per two bays.
+    evCharging: {
+      x0: -405000,
+      x1: -386000,
+      z0: -171000,
+      z1: 9000,
+      slots: 50,
+      chargers: 25,
+      occupied: 0.45, // share of bays with an electric tractor unit on charge
+      station: { x: -396000, z: -183500, w: 9000, d: 5000 }, // charging substation by road N1
+    },
     d1Width: 62000, // boulevard D1 with green medians
     parkedTruckRatio: 0.35, // share of yard bays holding a parked truck
   },
@@ -124,7 +136,8 @@ export const CONFIG = {
       { side: 'west', u: 320500, width: 26000, height: 7000, y: 11200 },
       { side: 'east', u: 320500, width: 26000, height: 7000, y: 11200 },
     ],
-    roofLogo: true, // big brand mark painted on the roof slope of each warehouse
+    // Brand mark painted across both roof slopes, centred near the fire wall (master plan REV02)
+    roofLogo: { centreU: 176000, length: 137000, width: 74000 },
   },
 
   // ---------------------------------------------------------------------------
@@ -180,6 +193,30 @@ export const CONFIG = {
       { side: 'west', u0: 32800, u1: 165800, depth: 9000 },
       { side: 'west', u0: 188750, u1: 321750, depth: 8000 },
       { side: 'north', v0: 28000, v1: 62000, depth: 8000 },
+    ],
+  },
+
+  // ---------------------------------------------------------------------------
+  // WEST APRON (container side, master plan REV02)
+  // Container trucks park parallel to the building (they do not reverse in).
+  // Reach stackers stand perpendicular to the wall to pick containers from the stacks.
+  // ---------------------------------------------------------------------------
+  westApron: {
+    // container blocks in the bays between the west doors: 2 x 20 ft along the wall, 4 rows deep
+    stackRowsX: [-63300, -60500, -57700, -54900],
+    stackMaxHigh: [3, 2, 1, 1], // rows under the canopy stay one high
+    // u (from the north end) of the bays served by the 5 reach stackers
+    reachStackers: [75250, 99250, 147250, 255250, 303250],
+    reachStackerX: -72000, // chassis centre; the boom points east to the stacks
+    // container trucks parked parallel to the facade, cab to the north (x = lane centre, z = truck centre)
+    parallelTrucks: [
+      { x: -69500, z: -122000 },
+      { x: -69500, z: -62400 },
+      { x: -69500, z: 9500 },
+      { x: -69500, z: 57400 },
+      { x: -69500, z: 99000 },
+      { x: -75400, z: 145200 },
+      { x: -69500, z: 167400 },
     ],
   },
 

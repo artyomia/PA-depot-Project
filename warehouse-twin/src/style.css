@@ -139,42 +139,38 @@ kbd {
 
 /* brand */
 .brand {
-  padding: 12px 14px;
+  padding: 12px 10px 12px 14px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .brand-mark {
-  position: relative;
-  width: 38px;
-  height: 34px;
+  width: 46px;
   flex: none;
+  display: grid;
+  place-items: center;
 }
 
-.brand-mark i {
-  position: absolute;
-  top: 0;
-  width: 12px;
-  height: 34px;
-  transform: skewX(-22deg);
-  border-radius: 2px;
+.brand-mark svg {
+  width: 46px;
+  height: auto;
+  stroke: none;
 }
 
-.brand-mark .o {
-  left: 8px;
-  background: var(--orange);
-}
-
-.brand-mark .b {
-  left: 22px;
-  background: var(--blue);
+body.dusk .brand .brand-mark svg polygon[fill='#2b3990'] {
+  fill: #5f74d6;
 }
 
 .brand-title {
   font-weight: 800;
   font-size: 15px;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.brand-text {
+  min-width: 0;
 }
 
 .brand-sub {
@@ -205,8 +201,20 @@ kbd {
 }
 
 .menu-btn {
-  display: none;
   margin-left: auto;
+  align-self: flex-start;
+}
+
+.menu-btn svg {
+  transition: transform 0.25s;
+}
+
+.ctl-collapsed .menu-btn svg {
+  transform: rotate(180deg);
+}
+
+.controls.collapsed {
+  display: none;
 }
 
 /* controls */
@@ -765,7 +773,11 @@ kbd {
 
 .loader-card .brand-mark {
   margin: 0 auto 14px;
-  transform: scale(1.4);
+  width: 84px;
+}
+
+.loader-card .brand-mark svg {
+  width: 84px;
 }
 
 .loader-card .t {
@@ -838,9 +850,6 @@ kbd {
 }
 
 @media (max-width: 900px) {
-  .menu-btn {
-    display: grid;
-  }
   .col.left {
     width: min(340px, calc(100% - 2 * var(--gap)));
     bottom: auto;

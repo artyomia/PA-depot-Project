@@ -114,7 +114,7 @@ async function main() {
 
   progress(0.78, 'Trucks and containers');
   await nextFrame();
-  const trucks = buildTrucks(M, docks.doors, site.parkingBays);
+  const trucks = buildTrucks(M, docks.doors, site.parkingBays, site.evBays);
   scene.add(trucks.group);
 
   // --- Lights, sky, environment -------------------------------------------------------------
@@ -471,6 +471,7 @@ async function main() {
     else if (k === 'x') setXray(!xrayTarget);
     else if (k === 'd') setDusk(!duskTarget);
     else if (k === 'l') setLayer('labels', !labelGroup.visible);
+    else if (k === 'c') ui.toggleControls();
     else if (k === ' ') {
       paused = !paused;
       ui.setPaused(paused);

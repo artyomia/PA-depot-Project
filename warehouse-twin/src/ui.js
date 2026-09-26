@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { logoSVG } from './logo.js';
 
 /**
  * DOM overlay: brand, view presets, display + layer toggles, key figures, legend,
@@ -21,14 +22,14 @@ export function createUI(root, handlers, figures) {
   el.innerHTML = `
     <div class="col left">
     <header class="panel brand">
-      <div class="brand-mark" aria-hidden="true"><i class="o"></i><i class="b"></i></div>
+      <div class="brand-mark" aria-hidden="true">${logoSVG()}</div>
       <div class="brand-text">
         <div class="brand-title">${P.title}</div>
         <div class="brand-sub">${P.subtitle}</div>
         <div class="brand-loc">${P.location}</div>
       </div>
-      <button class="icon-btn menu-btn" data-act="menu" aria-label="Show controls">
-        <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <button class="icon-btn menu-btn" data-act="menu" aria-label="Collapse the control panel" aria-expanded="true" title="Collapse / expand the control panel (C)">
+        <svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>
       </button>
     </header>
 
@@ -113,17 +114,35 @@ export function createUI(root, handlers, figures) {
   const info = $('#info');
   const needle = $('.compass .needle');
 
-  // compact layout on small screens
+  // collapsible control panel (remembered per browser; collapsed by default on small screens)
   const small = () => window.innerWidth < 900;
-  if (small()) {
-    controls.classList.add('collapsed');
-    figs.classList.add('collapsed');
+  const menuBtn = $('[data-act="menu"]');
+  const setCollapsed = (on, remember = true) => {
+    controls.classList.toggle('collapsed', on);
+    el.classList.toggle('ctl-collapsed', on);
+    menuBtn.setAttribute('aria-expanded', String(!on));
+    menuBtn.setAttribute('aria-label', on ? 'Expand the control panel' : 'Collapse the control panel');
+    if (remember && !small()) {
+      try {
+        localStorage.setItem('pa-twin-controls', on ? 'collapsed' : 'open');
+      } catch (e) {
+        /* storage unavailable */
+      }
+    }
+  };
+  let stored = null;
+  try {
+    stored = localStorage.getItem('pa-twin-controls');
+  } catch (e) {
+    /* storage unavailable */
   }
+  setCollapsed(small() || stored === 'collapsed', false);
+  if (small()) figs.classList.add('collapsed');
 
   $$('[data-preset]').forEach((b) =>
     b.addEventListener('click', () => {
       handlers.onPreset(b.dataset.preset);
-      if (small()) controls.classList.add('collapsed');
+      if (small()) setCollapsed(true, false);
     }),
   );
   $('[data-toggle="xray"]').addEventListener('change', (e) => handlers.onXray(e.target.checked));
@@ -132,11 +151,14 @@ export function createUI(root, handlers, figures) {
   $('[data-act="pause"]').addEventListener('click', () => handlers.onPause());
   $('[data-act="fullscreen"]').addEventListener('click', () => handlers.onFullscreen());
   $('[data-act="close"]').addEventListener('click', () => handlers.onCloseInfo());
-  $('[data-act="menu"]').addEventListener('click', () => controls.classList.toggle('collapsed'));
+  menuBtn.addEventListener('click', () => setCollapsed(!controls.classList.contains('collapsed')));
   $('[data-act="figs"]').addEventListener('click', () => figs.classList.toggle('collapsed'));
 
   return {
     root: el,
+    toggleControls() {
+      setCollapsed(!controls.classList.contains('collapsed'));
+    },
     setPreset(name) {
       $$('[data-preset]').forEach((b) => b.classList.toggle('on', b.dataset.preset === name));
     },

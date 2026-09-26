@@ -50,6 +50,45 @@ function tractorParts() {
   return p;
 }
 
+// Reach stacker (local: +x = boom direction, origin at the chassis centre on the ground)
+const RS_REACH = 9.0; // horizontal distance from chassis centre to the spreader
+const RS_SPREADER_Y = 8.2;
+function reachStackerParts() {
+  const p = { body: [], dark: [], tyre: [], glass: [] };
+  p.body.push(bx(7.6, 1.4, 3.4, 0, 1.6, 0)); // chassis
+  p.body.push(bx(1.5, 2.2, 3.4, -3.9, 2.0, 0)); // counterweight
+  p.dark.push(bx(1.9, 0.4, 1.8, -0.5, 2.5, 1.0)); // cab floor
+  p.body.push(bx(1.9, 0.25, 1.8, -0.5, 4.85, 1.0)); // cab roof
+  p.glass.push(bx(1.7, 2.2, 1.6, -0.5, 3.6, 1.0)); // cab glazing
+  for (const s of [-1, 1]) {
+    p.tyre.push(wheel(0.95, 0.8, 2.3, 0.95, s * 1.35));
+    p.tyre.push(wheel(0.95, 0.8, 2.3, 0.95, s * 0.55));
+    p.tyre.push(wheel(0.78, 0.6, -2.6, 0.78, s * 1.35));
+  }
+  // telescopic boom from the rear pivot up to the spreader head
+  const pivot = new THREE.Vector3(-3.2, 3.4, -0.3);
+  const head = new THREE.Vector3(RS_REACH, RS_SPREADER_Y + 1.4, -0.3);
+  const dir = new THREE.Vector3().subVectors(head, pivot);
+  const len = dir.length();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.clone().normalize());
+  const boom = (w, h, l0, l1) => {
+    const g = new THREE.BoxGeometry(l1 - l0, h, w).translate((l0 + l1) / 2, 0, 0);
+    g.applyQuaternion(q);
+    g.translate(pivot.x, pivot.y, pivot.z);
+    return g;
+  };
+  p.body.push(boom(1.0, 1.0, 0, len * 0.62));
+  p.body.push(boom(0.8, 0.8, len * 0.55, len));
+  p.dark.push(bx(0.5, 2.6, 0.5, 0.6, 3.2, -0.3)); // lift cylinder
+  // rotator and spreader (parallel to the container, along z)
+  p.dark.push(bx(0.6, 1.2, 0.6, RS_REACH, RS_SPREADER_Y + 0.7, -0.3));
+  p.body.push(bx(1.1, 0.45, 6.1, RS_REACH, RS_SPREADER_Y, 0));
+  for (const s of [-1, 1]) p.dark.push(bx(0.3, 0.5, 0.3, RS_REACH, RS_SPREADER_Y - 0.4, s * 2.9));
+  return p;
+}
+
+const reachMaterial = (M, key) => ({ body: M.reachBody, dark: M.chassis, tyre: M.tyre, glass: M.windshield })[key];
+
 function mergedParts(parts) {
   const out = {};
   for (const [k, list] of Object.entries(parts)) out[k] = merge(list);
@@ -133,7 +172,7 @@ function profile(u, a, easeIn, easeOut) {
 // -----------------------------------------------------------------------------
 // Build
 // -----------------------------------------------------------------------------
-export function buildTrucks(M, doors, parkingBays = []) {
+export function buildTrucks(M, doors, parkingBays = [], evBays = []) {
   const group = new THREE.Group();
   group.name = 'trucks';
   const rand = rng(77);
@@ -157,9 +196,15 @@ export function buildTrucks(M, doors, parkingBays = []) {
   for (const s of slots) {
     const key = `${s.door.group}:${s.door.index}:${s.slot}`;
     if (animKeys.has(key)) continue;
-    const ratio = s.door.side === 'east' ? TR.staticDockRatio : 0.3;
+    // west side: container trucks park parallel to the facade instead (see westApron)
+    const ratio = s.door.side === 'east' ? TR.staticDockRatio : 0;
     if (rand() > ratio) continue;
     statics.push({ x: s.x, z: s.z, ry: s.dir > 0 ? 0 : Math.PI, yard: false });
+  }
+  const WA = CONFIG.westApron;
+  for (const t of WA.parallelTrucks) {
+    // cab to the north: the rear bumper sits half a truck length south of the centre
+    statics.push({ x: m(t.x), z: m(t.z) + LTOT / 2, ry: Math.PI / 2, yard: false });
   }
   for (const b of parkingBays) {
     if (rand() > CONFIG.context.parkedTruckRatio) continue;
@@ -181,24 +226,57 @@ export function buildTrucks(M, doors, parkingBays = []) {
   }
   group.add(staticGroup);
 
-  // ---- container stacks on the west apron (non-door bays) ---------------------
-  const westDoorU = doorList().filter((d) => d.side === 'west').map((d) => d.u);
+  // ---- container blocks on the west apron (bays between the west doors) --------
+  // 2 x 20 ft along the wall, 4 rows deep; rows under the canopy stay one high.
+  const westDoors = doorList().filter((d) => d.side === 'west');
   const cMats = [], cCols = [];
   const cGeo = new THREE.BoxGeometry(2.44, 2.59, 6.06);
   cGeo.translate(0, 1.295, 0);
+  const stackBays = [];
   for (const wh of CONFIG.building.warehouses) {
-    for (let u = m(wh.u0) + 27.25; u < m(wh.u1) - 20; u += 12) {
-      if (westDoorU.some((du) => Math.abs(du - u) < 7)) continue;
-      if (rand() < 0.3) continue;
-      for (const dz of [-3.1, 3.1]) {
-        const hgt = 1 + Math.floor(rand() * 2);
+    const du = westDoors.filter((d) => d.warehouse === wh.id).map((d) => d.u);
+    if (!du.length) continue;
+    for (let u = Math.min(...du); u <= Math.max(...du); u += 12) if (!du.some((x) => Math.abs(x - u) < 1)) stackBays.push(u);
+  }
+  for (const u of stackBays) {
+    for (const dz of [-3.2, 3.2]) {
+      WA.stackRowsX.forEach((rx, ri) => {
+        if (rand() < 0.1) return;
+        const hgt = 1 + Math.floor(rand() * WA.stackMaxHigh[ri]);
         for (let k = 0; k < hgt; k++) {
-          cMats.push(trs(-62.2, Y_YARD + k * 2.6, uToZ(u) + dz));
+          cMats.push(trs(m(rx), Y_YARD + k * 2.6, uToZ(u) + dz));
           cCols.push(new THREE.Color(pick(TR.containerColors)));
         }
-      }
+      });
     }
   }
+
+  // ---- reach stackers, perpendicular to the wall, boom towards the stacks -------
+  const rs = mergedParts(reachStackerParts());
+  const rsMats = WA.reachStackers.map((u) => trs(m(WA.reachStackerX), Y_YARD, uToZ(m(u)), 0));
+  for (const [k, g] of Object.entries(rs)) group.add(instanced(g, reachMaterial(M, k), rsMats, null));
+  // two of them are carrying a container on the spreader
+  WA.reachStackers.forEach((u, i) => {
+    if (i % 2 === 1) {
+      cMats.push(trs(m(WA.reachStackerX) + RS_REACH, Y_YARD + RS_SPREADER_Y - 2.75, uToZ(m(u))));
+      cCols.push(new THREE.Color(pick(TR.containerColors)));
+    }
+  });
+
+  // ---- electric tractor units on charge (EV charging area) -----------------------
+  if (evBays.length) {
+    const evMats = [], evCols = [];
+    for (const b of evBays) {
+      if (rand() > CONFIG.context.evCharging.occupied) continue;
+      // nose towards the charger (west): king pin 6 m inside the bay
+      evMats.push(trs(b.x0 + 1.4 + LC, Y_YARD, b.z, Math.PI));
+      evCols.push(new THREE.Color(pick(['#f4f4f2', '#1d5fb8', '#e2622b', '#2f8f4e', '#fafafa'])));
+    }
+    for (const [k, g] of Object.entries(tractor)) {
+      group.add(instanced(g, partMaterial(M, k), evMats, k === 'cab' ? evCols : null, { cast: false }));
+    }
+  }
+
   // worldUV-like local UVs for the corrugation texture
   const uv = cGeo.attributes.uv, pos = cGeo.attributes.position, nor = cGeo.attributes.normal;
   for (let i = 0; i < pos.count; i++) {

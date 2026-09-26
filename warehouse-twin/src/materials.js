@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { rng } from './util.js';
+import { drawLogoMark, LOGO_ASPECT } from './logo.js';
 
 /**
  * Procedural textures (drawn on canvases, no image files) and shared materials.
@@ -301,32 +302,14 @@ export function logoCanvas(line1, line2, { background = null, dark = false } = {
     x.fillStyle = background;
     x.fillRect(0, 0, W, H);
   }
-  // mark: two slanted parallelograms
-  const mark = (x0, color, w) => {
-    x.fillStyle = color;
-    x.beginPath();
-    x.moveTo(x0, H * 0.86);
-    x.lineTo(x0 + w, H * 0.86);
-    x.lineTo(x0 + w + 150, H * 0.14);
-    x.lineTo(x0 + 150, H * 0.14);
-    x.closePath();
-    x.fill();
-  };
-  mark(40, '#e2622b', 120);
-  mark(185, '#1d5fb8', 120);
-  x.fillStyle = dark ? 'rgba(255,255,255,0.9)' : '#ffffff';
-  x.beginPath();
-  x.moveTo(170, H * 0.86);
-  x.lineTo(196, H * 0.86);
-  x.lineTo(346, H * 0.14);
-  x.lineTo(320, H * 0.14);
-  x.fill();
-  x.fillStyle = dark ? '#ffffff' : '#1b4f9e';
+  // brand mark (traced from the supplied logo)
+  drawLogoMark(x, 30, H * 0.5 - 250 * 0.5 - 25, 465);
+  x.fillStyle = dark ? '#ffffff' : '#2b3990';
   x.font = 'italic 900 250px "Arial Black", "Helvetica Neue", Arial, sans-serif';
   x.textBaseline = 'alphabetic';
   x.fillText(line1, 520, H * 0.64);
   const w1 = x.measureText(line1).width;
-  x.fillStyle = '#e2622b';
+  x.fillStyle = '#f0622a';
   x.font = '700 110px "Helvetica Neue", Arial, sans-serif';
   const letters = line2.split('');
   let px = 520 + w1 - letters.length * 118;
@@ -337,25 +320,11 @@ export function logoCanvas(line1, line2, { background = null, dark = false } = {
   return c;
 }
 
-/** Roof brand mark: two large slanted shapes, painted on the metal sheet. */
+/** Roof brand mark: the logo painted across both roof slopes (transparent background). */
 function roofMarkCanvas() {
-  const W = 1024, H = 1024;
+  const W = 2048, H = Math.round(2048 * LOGO_ASPECT);
   const c = canvas(W, H);
-  const x = c.getContext('2d');
-  x.clearRect(0, 0, W, H);
-  // two slanted bars, like the brand mark (canvas x = along the building, y = across the slope)
-  const bar = (x0, color) => {
-    x.fillStyle = color;
-    x.beginPath();
-    x.moveTo(x0, H * 0.92);
-    x.lineTo(x0 + 190, H * 0.92);
-    x.lineTo(x0 + 190 + 260, H * 0.08);
-    x.lineTo(x0 + 260, H * 0.08);
-    x.closePath();
-    x.fill();
-  };
-  bar(150, 'rgba(226,98,43,0.95)');
-  bar(420, 'rgba(29,95,184,0.95)');
+  drawLogoMark(c.getContext('2d'), 0, 0, W);
   return c;
 }
 
@@ -477,6 +446,8 @@ export function createMaterials() {
     container: std({ map: T.container, roughness: 0.6, metalness: 0.25 }),
     cab: std({ roughness: 0.35, metalness: 0.4 }),
     chassis: std({ color: '#26282b', roughness: 0.7, metalness: 0.3 }),
+    reachBody: std({ color: '#f2b418', roughness: 0.45, metalness: 0.25 }),
+    evScreen: std({ color: '#1f7a3a', emissive: '#48e07a', emissiveIntensity: 0.6, roughness: 0.3 }),
     tyre: std({ color: '#141414', roughness: 0.95 }),
     windshield: std({ color: '#1f2a33', roughness: 0.1, metalness: 0.8 }),
     headlight: std({ color: '#fdfdf5', emissive: '#fff6d8', emissiveIntensity: 0.2 }),

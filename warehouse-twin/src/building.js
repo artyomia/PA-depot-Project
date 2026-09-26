@@ -267,19 +267,6 @@ export function buildBuilding(M, TH) {
     }
     add(fasc.map((g) => worldUV(g.index ? g.toNonIndexed() : g)), fascia);
 
-    // Brand mark painted on the east roof slope
-    if (B.roofLogo) {
-      const mat = X(new THREE.MeshStandardMaterial({ map: M.T.roofMark, transparent: true, roughness: 0.5, metalness: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
-      const ua = wh.id === 'F1' ? 72 : 238, ub = ua + 56;
-      const g = slopeQuad(8, 44, uToZ(ua), uToZ(ub), 0.27, true);
-      // custom UVs 0..1 across the decal
-      const pos = g.attributes.position, uv = g.attributes.uv;
-      for (let k = 0; k < pos.count; k++) uv.setXY(k, (pos.getZ(k) - uToZ(ua)) / (ub - ua), (pos.getX(k) - 8) / 36);
-      const decal = mesh(g, mat, { cast: false });
-      decal.renderOrder = 3;
-      whGroup.add(decal);
-    }
-
     // Selection volume (hidden until the warehouse is clicked)
     const sel = selectionVolume(u0, u1, wh.theme.accent);
     whGroup.add(sel);
@@ -294,6 +281,22 @@ export function buildBuilding(M, TH) {
       center: new THREE.Vector3(0, 8, uToZ((u0 + u1) / 2)),
       doors: doors.filter((d) => d.warehouse === wh.id).length,
     };
+  }
+
+  // --- Brand mark painted across both roof slopes (as on master plan REV02) -----------
+  if (B.roofLogo) {
+    const R = B.roofLogo;
+    const L = m(R.length), Wd = m(R.width), zc = uToZ(m(R.centreU));
+    const zS = zc + L / 2; // logo left edge (south); logo reads with its top to the west
+    const mat = X(new THREE.MeshStandardMaterial({ map: M.T.roofMark, transparent: true, roughness: 0.5, metalness: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    const geos = [slopeQuad(-Wd / 2, 0, zc - L / 2, zc + L / 2, 0.27, true), slopeQuad(0, Wd / 2, zc - L / 2, zc + L / 2, 0.27, true)];
+    for (const g of geos) {
+      const pos = g.attributes.position, uv = g.attributes.uv;
+      for (let k = 0; k < pos.count; k++) uv.setXY(k, (zS - pos.getZ(k)) / L, (Wd / 2 - pos.getX(k)) / Wd);
+    }
+    const decal = mesh(merge(geos), mat, { cast: false });
+    decal.renderOrder = 3;
+    group.add(decal);
   }
 
   // --- Fire wall ---------------------------------------------------------------

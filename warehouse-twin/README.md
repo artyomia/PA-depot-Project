@@ -62,6 +62,7 @@ monitored and the resolution is lowered further if needed.
 | Warehouse info card              | Click F1 or F2 (building or its label), `Esc` closes | Tap                  |
 | Ancillary building name and size | Hover                                         | Tap                      |
 | Labels on / off                  | Switch or `L`                                 | Switch                   |
+| Collapse / expand the left panel | Chevron in the title bar or `C`               | Chevron                  |
 | Pause / play the truck loop      | Button or `Space`                             | Button                   |
 
 Camera presets: **Aerial**, **Front entrance** (F1 office and portal frame), **Dock side** (east docks),
@@ -125,6 +126,8 @@ F2 = X1 to X15 (165 250) and F1 = X15 to X30 (177 250).
 | `racks`       | Height, beam levels, depth, bay length, occupancy, row pitch, rack blocks and row ranges         |
 | `trucks`      | Number of animated trucks, their target docks, speeds, dwell time, colours                        |
 | `landscape`   | Tree spacing and the green islands inside the plot                                               |
+| `westApron`   | Container side: container block rows, the 5 reach stackers, trucks parked parallel to the facade  |
+| `context.evCharging` | Tractor parking and EV charging bays (50 bays, 25 dual chargers) and the charging substation |
 | `cameras`     | The five presets (`pos` and `target`, metres)                                                    |
 
 ### Common edits
@@ -170,6 +173,7 @@ warehouse-twin/
     racks.js          selective pallet racking as InstancedMesh (uprights, beams, pallet loads, guards)
     trucks.js         truck models, parked and docked trucks, animated gate > dock > gate loop
     ui.js             overlay panels, info card, legend, compass
+    logo.js           Phuoc An brand mark (traced from the supplied artwork) for roof, panels, UI, favicon
     materials.js      procedural canvas textures and shared materials
     util.js           geometry helpers (metre based UVs, merging, instancing)
     style.css         UI styling (light for day, dark glass for dusk, responsive for iPad and phones)
@@ -205,4 +209,11 @@ construction document.
   wall at the south end, blue theme.
 - **Ancillary buildings** are placed on the east strip and at the gates as on the master plan; the packaging
   store and driver rest room sit against the east facade on either side of the fire wall.
-- **Logos** are simple placeholders (text and two slanted bars), not the official artwork.
+- **Logo.** The Phuoc An mark is traced from the supplied logo artwork. It is painted across both roof slopes,
+  centred on the fire wall, as on master plan REV02, and used on the facade panels, gates, UI and favicon.
+- **Master plan REV02** additions: the tractor parking / trailer drop / EV charging row (50 bays, 25 dual
+  chargers, substation next to road N1) along the east edge of the park, which is narrowed accordingly.
+- **West (container) side.** Container trucks park parallel to the facade on the west road instead of
+  reversing in, and 5 reach stackers stand perpendicular to the wall to pick from the container blocks
+  (2 x 20 ft along the wall, 4 rows deep, one high under the canopy), positions per REV02. The east side is
+  unchanged.

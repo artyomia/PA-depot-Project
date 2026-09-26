@@ -326,6 +326,54 @@ export function buildSite(M) {
     group.add(g);
   }
 
+  // --- EV charging / tractor parking / trailer drop (master plan REV02) ------------------
+  const evBays = [];
+  const EV = C.evCharging;
+  if (EV) {
+    const x0 = m(EV.x0), x1 = m(EV.x1), z0 = m(EV.z0), z1 = m(EV.z1);
+    const n = EV.slots, bw = (z1 - z0) / n;
+    const area = new THREE.Group();
+    area.name = 'ev-charging';
+    // green painted bays
+    const fill = new THREE.Mesh(flatRect(x0, x1, z0, z1, Y.mark - 0.01), new THREE.MeshStandardMaterial({ color: '#58b35e', transparent: true, opacity: 0.35, roughness: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 }));
+    area.add(fill);
+    const lineM = [];
+    for (let k = 0; k <= n; k++) lineM.push(trs((x0 + x1) / 2, Y.mark, z0 + k * bw, 0, x1 - x0, 1, k % 2 ? 0.6 : 1));
+    lineM.push(trs(x0, Y.mark, (z0 + z1) / 2, Math.PI / 2, z1 - z0, 1, 1));
+    lineM.push(trs(x1, Y.mark, (z0 + z1) / 2, Math.PI / 2, z1 - z0, 1, 1));
+    const greenLine = new THREE.MeshStandardMaterial({ color: '#2f9a3a', roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -8 });
+    area.add(instanced(new THREE.BoxGeometry(1, 0.02, 0.18), greenLine, lineM, null, { cast: false }));
+    for (let k = 0; k < n; k++) evBays.push({ x0, x1, z: z0 + (k + 0.5) * bw });
+    // dual chargers on the park side, one per two bays, with a yellow cable trench
+    const posts = [], screens = [];
+    for (let k = 0; k < EV.chargers; k++) {
+      const z = z0 + (k + 0.5) * ((z1 - z0) / EV.chargers);
+      posts.push(trs(x0 - 0.7, Y.pave + 0.9, z));
+      screens.push(trs(x0 - 0.42, Y.pave + 1.35, z));
+    }
+    area.add(instanced(new THREE.BoxGeometry(0.5, 1.8, 0.7), new THREE.MeshStandardMaterial({ color: '#f4f5f2', roughness: 0.4, metalness: 0.2 }), posts, null));
+    area.add(instanced(new THREE.BoxGeometry(0.06, 0.45, 0.45), M.evScreen, screens, null, { cast: false }));
+    const st = EV.station, sx = m(st.x), sz = m(st.z);
+    area.add(mesh(flatRect(x0 - 1.6, x0 - 1.0, sz, z1, Y.mark), M.markingYellow, { cast: false }));
+    area.add(mesh(flatRect(x0 - 1.6, sx, sz - 0.3, sz + 0.3, Y.mark), M.markingYellow, { cast: false }));
+    ancillary.push({ config: { id: 'ev' }, group: area, box: new THREE.Box3().setFromObject(area), info: { name: 'Tractor parking & EV charging', size: `${n} bays, ${EV.chargers} dual chargers` } });
+    area.traverse((o) => o.isMesh && (o.userData.anc = ancillary.length - 1));
+    group.add(area);
+    // charging substation next to road N1
+    const stn = new THREE.Group();
+    stn.name = 'ev-station';
+    const sw2 = m(st.w), sd2 = m(st.d);
+    stn.add(mesh(new THREE.BoxGeometry(sw2, 0.3, sd2).translate(sx, Y.pave + 0.15, sz), M.tankSlab, { cast: false }));
+    for (const o of [-sw2 / 4, sw2 / 4]) stn.add(mesh(new THREE.BoxGeometry(sw2 / 2 - 0.8, 2.4, sd2 - 1.2).translate(sx + o, Y.pave + 1.5, sz), M.substation));
+    stn.add(mesh(new THREE.BoxGeometry(sw2 - 0.2, 0.12, sd2 - 0.6).translate(sx, Y.pave + 2.76, sz), M.ancAccent));
+    const bol = [];
+    for (let k = 0; k < 6; k++) bol.push(new THREE.CylinderGeometry(0.12, 0.12, 1.0, 8).translate(sx - sw2 / 2 + 0.3 + (k * (sw2 - 0.6)) / 5, Y.pave + 0.5, sz + sd2 / 2 + 0.4));
+    stn.add(mesh(merge(bol), M.yellowBlack, { cast: false }));
+    ancillary.push({ config: { id: 'evstation' }, group: stn, box: new THREE.Box3().setFromObject(stn), info: { name: 'EV charging substation', size: 'feeds the tractor charging bays' } });
+    stn.traverse((o) => o.isMesh && (o.userData.anc = ancillary.length - 1));
+    group.add(stn);
+  }
+
   // --- Plot boundary (red dashed, like the master plan) --------------------------------
   const bpts = [
     [PLOT.x0, PLOT.z0], [PLOT.x1, PLOT.z0], [PLOT.x1, PLOT.z1], [PLOT.x0, PLOT.z1], [PLOT.x0, PLOT.z0],
@@ -424,9 +472,10 @@ export function buildSite(M) {
     { text: 'Gate G2', cls: 'gate', pos: [m(S.gates[1].x), Y_YARD + 9, PLOT.z1] },
     { text: 'Truck parking yard', cls: 'zone', pos: [-270, Y_YARD + 1, 115] },
     { text: 'Landscaped park', cls: 'zone', pos: [(pk.x0 + pk.x1) / 2, Y_YARD + 1, (pk.z0 + pk.z1) / 2] },
+    ...(C.evCharging ? [{ text: 'EV charging (tractors)', cls: 'zone', pos: [m(C.evCharging.x0 + C.evCharging.x1) / 2, Y_YARD + 1, -80] }] : []),
     { text: 'Dock apron (east)', cls: 'zone', pos: [62, Y_YARD + 1, 60] },
     { text: 'Container staging (west)', cls: 'zone', pos: [-62, Y_YARD + 1, -60] },
   ];
 
-  return { group, landscape, labels, ancillary, parkingBays, glows, anchors, plot: PLOT };
+  return { group, landscape, labels, ancillary, parkingBays, evBays, glows, anchors, plot: PLOT };
 }
