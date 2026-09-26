@@ -77,6 +77,18 @@ export function buildSite(M) {
   ];
   const roadGeos = plotRoads.map(([a, b, c, d]) => flatRect(a, b, c, d, Y.road));
 
+  // container depot gates: driveways across the sidewalks of N1 / N3 / D1
+  for (const g of CONFIG.depot?.gates || []) {
+    const gx = m(g.x), gz = m(g.z);
+    if (g.axis === 'z') {
+      const out = gz < 0 ? PLOT.z0 - m(C.sidewalk) : PLOT.z1 + m(C.sidewalk);
+      roadGeos.push(flatRect(gx - 11, gx + 11, Math.min(gz, out), Math.max(gz, out), Y.road));
+    } else {
+      const xw = PLOT.x0 - m(C.yardWidth);
+      roadGeos.push(flatRect(xw - 6.5, gx, gz - 11, gz + 11, Y.road));
+    }
+  }
+
   // gate driveways across the sidewalk
   for (const g of S.gates) {
     const gx = m(g.x), gw = m(g.width);
@@ -145,32 +157,8 @@ export function buildSite(M) {
   }
   group.add(mesh(merge(yardRoadGeos), roadM, { cast: false }));
 
-  // parking regions between yard roads
+  // The regions between the yard roads are container yards (see depot.js), not truck parking.
   const parkingBays = [];
-  const rowGeos = [];
-  const regions = [
-    [yardX0 + 6, pk.x1, 38.5, PLOT.z1],
-    [-335.5, -206.25, -173.5, 23.5],
-    [-335.5, -206.25, 38.5, PLOT.z1],
-    [-183.75, PLOT.x0, -173.5, 23.5],
-    [-183.75, PLOT.x0, 38.5, PLOT.z1],
-  ];
-  for (const [x0, x1, z0, z1] of regions) {
-    const nb = Math.floor((x1 - x0 - 8) / 4);
-    const xs = x0 + (x1 - x0 - nb * 4) / 2;
-    for (let z = z0 + 7; z + 18 <= z1 - 6; z += 40) {
-      const g = new THREE.PlaneGeometry(nb * 4, 18);
-      g.rotateX(-Math.PI / 2);
-      g.translate(xs + (nb * 4) / 2, Y.mark, z + 9);
-      const uv = g.attributes.uv;
-      for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * nb);
-      rowGeos.push(g);
-      for (let k = 0; k < nb; k++) parkingBays.push({ x: xs + k * 4 + 2, z: z + 9 });
-    }
-  }
-  const parkingMat = M.parking;
-  M.T.parking.repeat.set(1, 1);
-  group.add(mesh(merge(rowGeos), parkingMat, { cast: false }));
 
   // --- Road markings ------------------------------------------------------------------
   // centre dashes of plot roads, N1, N3, D1 lanes
@@ -385,7 +373,15 @@ export function buildSite(M) {
 
   // --- Trees and shrubs ------------------------------------------------------------------
   const trees = []; // [x, z, scale]
-  const tree = (x, z, s = 1) => trees.push([x, z, s * (0.8 + rand() * 0.45)]);
+  // keep the access control gates (and their driveways) free of trees and lamps
+  const gateZones = (CONFIG.depot?.gates || []).map((g) => {
+    const gx = m(g.x), gz = m(g.z);
+    return g.axis === 'x' ? [gx - 34, gx + 24, gz - 16, gz + 16] : [gx - 16, gx + 16, gz - 26, gz + 26];
+  });
+  const inGate = (x, z) => gateZones.some(([a, b, c, d]) => x > a && x < b && z > c && z < d);
+  const tree = (x, z, s = 1) => {
+    if (!inGate(x, z)) trees.push([x, z, s * (0.8 + rand() * 0.45)]);
+  };
   for (let z = -100; z < PLOT.z1 - 18; z += m(CONFIG.landscape.treeSpacing)) tree(PLOT.x1 - 1.8, z, 0.9);
   for (let x = d1x1 + 8; x < xFar - 10; x += 11) {
     if (Math.abs(x - 65.5) < 11 || Math.abs(x + 72.5) < 11) continue;
@@ -444,6 +440,7 @@ export function buildSite(M) {
     if (r.dir === 'ns') for (let z = PLOT.z0 + 15; z < PLOT.z1; z += 40) lamps.push([m(r.x) + m(r.width) / 2 + 0.8, z, Math.PI]);
     else for (let x = (r.x0 !== undefined ? m(r.x0) : yardX0) + 15; x < PLOT.x0; x += 40) lamps.push([x, m(r.z) - m(r.width) / 2 - 0.8, -Math.PI / 2]);
   }
+  for (let i = lamps.length - 1; i >= 0; i--) if (inGate(lamps[i][0], lamps[i][1])) lamps.splice(i, 1);
   const poleM = [], armM = [], headM = [], glowPos = [];
   const PH = 10;
   for (const [x, z, ry] of lamps) {
@@ -470,7 +467,6 @@ export function buildSite(M) {
     { text: 'Road D1', cls: 'road', pos: [(d1x0 + d1x1) / 2, Y.mark, -150] },
     { text: 'Gate G1', cls: 'gate', pos: [m(S.gates[0].x), Y_YARD + 9, PLOT.z0] },
     { text: 'Gate G2', cls: 'gate', pos: [m(S.gates[1].x), Y_YARD + 9, PLOT.z1] },
-    { text: 'Truck parking yard', cls: 'zone', pos: [-270, Y_YARD + 1, 115] },
     { text: 'Landscaped park', cls: 'zone', pos: [(pk.x0 + pk.x1) / 2, Y_YARD + 1, (pk.z0 + pk.z1) / 2] },
     ...(C.evCharging ? [{ text: 'EV charging (tractors)', cls: 'zone', pos: [m(C.evCharging.x0 + C.evCharging.x1) / 2, Y_YARD + 1, -80] }] : []),
     { text: 'Dock apron (east)', cls: 'zone', pos: [62, Y_YARD + 1, 60] },

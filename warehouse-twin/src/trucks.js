@@ -4,19 +4,19 @@ import { m, Y_YARD, BUILD_L, uToZ, merge, rng, instanced, trs, clamp } from './u
 import { dockSlots, doorList } from './docks.js';
 
 const TR = CONFIG.trucks;
-const LT = 11.8; // trailer rear bumper to king pin
-const LC = 4.7; // king pin to tractor front bumper
-const LTOT = LT + LC;
+export const LT = 11.8; // trailer rear bumper to king pin
+export const LC = 4.7; // king pin to tractor front bumper
+export const LTOT = LT + LC;
 
 // -----------------------------------------------------------------------------
 // Geometry (local frame: +x forward, y = 0 on the ground, z lateral)
 // -----------------------------------------------------------------------------
-const bx = (sx, sy, sz, x, y, z) => new THREE.BoxGeometry(sx, sy, sz).translate(x, y, z);
-const wheel = (r, w, x, y, z) => new THREE.CylinderGeometry(r, r, w, 10).rotateX(Math.PI / 2).translate(x, y, z);
+export const bx = (sx, sy, sz, x, y, z) => new THREE.BoxGeometry(sx, sy, sz).translate(x, y, z);
+export const wheel = (r, w, x, y, z) => new THREE.CylinderGeometry(r, r, w, 10).rotateX(Math.PI / 2).translate(x, y, z);
 const tank = (r, l, x, y, z) => new THREE.CylinderGeometry(r, r, l, 12).rotateZ(Math.PI / 2).translate(x, y, z);
 
 /** Trailer with 40 ft container. Origin at the rear bumper. */
-function trailerParts() {
+export function trailerParts() {
   const p = { container: [], chassis: [], tyre: [], tail: [] };
   p.container.push(bx(12.19, 2.59, 2.44, 6.095, 1.32 + 1.295, 0));
   p.chassis.push(bx(12.0, 0.24, 1.0, 6.2, 1.18, 0));
@@ -31,7 +31,7 @@ function trailerParts() {
 }
 
 /** Cab-over tractor unit. Origin at the king pin. */
-function tractorParts() {
+export function tractorParts() {
   const p = { cab: [], chassis: [], tyre: [], glass: [], head: [] };
   p.chassis.push(bx(6.2, 0.32, 1.0, 1.25, 1.0, 0));
   p.chassis.push(bx(1.3, 0.14, 1.5, 0, 1.24, 0));
@@ -89,19 +89,19 @@ function reachStackerParts() {
 
 const reachMaterial = (M, key) => ({ body: M.reachBody, dark: M.chassis, tyre: M.tyre, glass: M.windshield })[key];
 
-function mergedParts(parts) {
+export function mergedParts(parts) {
   const out = {};
   for (const [k, list] of Object.entries(parts)) out[k] = merge(list);
   return out;
 }
 
-const partMaterial = (M, key) =>
+export const partMaterial = (M, key) =>
   ({ container: M.container, cab: M.cab, chassis: M.chassis, tyre: M.tyre, glass: M.windshield, head: M.headlight, tail: M.taillight })[key];
 
 // -----------------------------------------------------------------------------
 // Paths: polyline with rounded corners, sampled by arc length (with linear extrapolation)
 // -----------------------------------------------------------------------------
-function fillet(pts, radius) {
+export function fillet(pts, radius) {
   const out = [pts[0]];
   const n = pts.length;
   for (let i = 1; i < n - 1; i++) {
@@ -131,7 +131,7 @@ function fillet(pts, radius) {
   return out.filter((p, i) => i === 0 || Math.hypot(p[0] - out[i - 1][0], p[1] - out[i - 1][1]) > 1e-4);
 }
 
-class Path {
+export class Path {
   constructor(pts) {
     this.p = pts;
     this.c = [0];
@@ -161,7 +161,7 @@ class Path {
 }
 
 /** Trapezoidal velocity profile: accelerate over `a` of the time (optional in / out). */
-function profile(u, a, easeIn, easeOut) {
+export function profile(u, a, easeIn, easeOut) {
   const ai = easeIn ? a : 0, ao = easeOut ? a : 0;
   const vmax = 1 / (1 - (ai + ao) / 2);
   if (u < ai) return (0.5 * vmax * u * u) / ai;
@@ -434,7 +434,7 @@ export function buildTrucks(M, doors, parkingBays = [], evBays = []) {
   return { group, update, setDusk, animated, stats: { static: statics.length, containers: cMats.length, animated: animated.length } };
 }
 
-function fixContainerUV(g) {
+export function fixContainerUV(g) {
   if (!g) return;
   const uv = g.attributes.uv, pos = g.attributes.position, nor = g.attributes.normal;
   for (let i = 0; i < pos.count; i++) {

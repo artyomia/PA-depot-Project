@@ -126,6 +126,7 @@ F2 = X1 to X15 (165 250) and F1 = X15 to X30 (177 250).
 | `racks`       | Height, beam levels, depth, bay length, occupancy, row pitch, rack blocks and row ranges         |
 | `trucks`      | Number of animated trucks, their target docks, speeds, dwell time, colours                        |
 | `landscape`   | Tree spacing and the green islands inside the plot                                               |
+| `depot`       | West container depot: yards (blocks, tiers, 20/40 ft mix, colours), access control gates, office, number of working reach stackers and yard trucks |
 | `westApron`   | Container side: container block rows, the 5 reach stackers, trucks parked parallel to the facade  |
 | `context.evCharging` | Tractor parking and EV charging bays (50 bays, 25 dual chargers) and the charging substation |
 | `cameras`     | The five presets (`pos` and `target`, metres)                                                    |
@@ -173,6 +174,8 @@ warehouse-twin/
     racks.js          selective pallet racking as InstancedMesh (uprights, beams, pallet loads, guards)
     trucks.js         truck models, parked and docked trucks, animated gate > dock > gate loop
     ui.js             overlay panels, info card, legend, compass
+    depot.js          container depot: container blocks, access control gates, office, animated yard trucks
+                      and reach stackers (pick and place loop)
     logo.js           Phuoc An brand mark (traced from the supplied artwork) for roof, panels, UI, favicon
     materials.js      procedural canvas textures and shared materials
     util.js           geometry helpers (metre based UVs, merging, instancing)
@@ -217,3 +220,9 @@ construction document.
   reversing in, and 5 reach stackers stand perpendicular to the wall to pick from the container blocks
   (2 x 20 ft along the wall, 4 rows deep, one high under the canopy), positions per REV02. The east side is
   unchanged.
+- **Container depot (west yard).** The five areas between the yard roads are container yards, not truck
+  parking: blocks 7 containers wide, stacked up to 5 high with a 20 / 40 ft mix and the colours of the reference
+  photos, reach stacker aisles between the blocks. 7 reach stackers pick and place containers and 10 container
+  trucks drive through the yard roads, stopping at the access control gates, whose barriers open for them.
+- **Access control gates** (5 lanes with booths, barriers and a branded canopy) at road D1, road N1 and
+  road N3, and the 3-floor **office building** with its orange entrance portal next to the N3 gate.

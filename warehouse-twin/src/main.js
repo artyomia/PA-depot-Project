@@ -10,6 +10,7 @@ import { buildBuilding } from './building.js';
 import { buildDocks, doorList } from './docks.js';
 import { buildRacks } from './racks.js';
 import { buildTrucks } from './trucks.js';
+import { buildDepot } from './depot.js';
 import { createUI, warehouseInfoHTML } from './ui.js';
 import { m, BUILD_L, BUILD_W, clamp, lerp, easeInOut } from './util.js';
 
@@ -116,6 +117,13 @@ async function main() {
   await nextFrame();
   const trucks = buildTrucks(M, docks.doors, site.parkingBays, site.evBays);
   scene.add(trucks.group);
+
+  progress(0.86, 'Container depot');
+  await nextFrame();
+  const depot = buildDepot(M, site.ancillary);
+  scene.add(depot.statics);
+  trucks.group.add(depot.yard); // containers and yard vehicles follow the Trucks & containers layer
+  site.anchors.push(...depot.anchors);
 
   // --- Lights, sky, environment -------------------------------------------------------------
   const hemi = new THREE.HemisphereLight('#ffffff', '#888888', 0.6);
@@ -498,7 +506,7 @@ async function main() {
   progress(1, 'Ready');
 
   // expose for debugging / automated screenshots
-  window.twin = { scene, camera, controls, renderer, goTo, setXray, setDusk, setLayer, select, trucks, racks, building, site, config: CONFIG, LIGHT, applyLight, hemi, sun, M };
+  window.twin = { scene, camera, controls, renderer, goTo, setXray, setDusk, setLayer, select, trucks, racks, building, site, depot, config: CONFIG, LIGHT, applyLight, hemi, sun, M };
 
   let last = performance.now();
   let frames = 0, acc = 0, shadowTick = 0, occT = 1;
@@ -513,7 +521,10 @@ async function main() {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
 
-    if (!paused) trucks.update(dt);
+    if (!paused) {
+      trucks.update(dt);
+      depot.update(dt);
+    }
     sky.material.uniforms.time.value += dt;
 
     // camera tween

@@ -221,6 +221,41 @@ export const CONFIG = {
   },
 
   // ---------------------------------------------------------------------------
+  // CONTAINER DEPOT (west yard, master plan REV02)
+  // ---------------------------------------------------------------------------
+  depot: {
+    // Container yards between the yard roads. Blocks ("columns") are `slots` containers wide and run
+    // along `dir` ('x' = east-west, 'z' = north-south), with reach stacker aisles between them.
+    yards: [
+      { name: 'Laden container yard', x0: -539000, x1: -409000, z0: 38500, z1: 191750, dir: 'z' },
+      { name: 'Container yard (MNR done)', x0: -335500, x1: -206250, z0: -173500, z1: 23500, dir: 'x' },
+      { name: 'Empty container yard', x0: -335500, x1: -206250, z0: 38500, z1: 191750, dir: 'x' },
+      { name: 'Containers awaiting MNR', x0: -183750, x1: -80000, z0: -173500, z1: 23500, dir: 'x' },
+      { name: 'Empty container yard', x0: -183750, x1: -80000, z0: 38500, z1: 191750, dir: 'x' },
+    ],
+    slots: 7, // containers side by side in one block
+    slotWidth: 2900,
+    cellLength: 6800, // one 20 ft cell; a 40 ft box takes two cells
+    aisle: 20000,
+    margin: 6000,
+    maxTiers: 5,
+    share40ft: 0.7,
+    // colours as in the reference photos (maroon, red, yellow, blues, some grey / green / white)
+    containerColors: ['#7d2626', '#8e2d2b', '#a8352f', '#c0392b', '#e0a91c', '#e8b521', '#d99a17', '#1f4f9a', '#1c3f7c', '#2f6fc0', '#23507f', '#6f7478', '#2e6b4a', '#e6e6e2', '#b5462a'],
+    // Access control gates (lanes with booths, barriers and a canopy)
+    gates: [
+      { id: 'gD1', name: 'Access control gate (D1)', x: -531000, z: 31000, axis: 'x', lanes: 5 },
+      { id: 'gN1', name: 'Access control gate (N1)', x: -343000, z: -182500, axis: 'z', lanes: 5 },
+      { id: 'gN3', name: 'Access control gate (N3)', x: -195000, z: 180500, axis: 'z', lanes: 5 },
+    ],
+    // Office building (3 floors) facing road N3, west of the N3 gate
+    office: { x0: -262000, x1: -216000, z0: 138000, z1: 174000, floors: 3, compound: { x0: -272000, x1: -207000, z0: 126000, z1: 191000 } },
+    reachStackers: 7, // working in the container yards (pick and place loop)
+    yardTrucks: 10, // container trucks driving through the gates and yard roads
+    yardTruckSpeed: 8.5, // m/s
+  },
+
+  // ---------------------------------------------------------------------------
   // ANCILLARY BUILDINGS (plan position of the centre in site coordinates, mm)
   //   w = size east-west, d = size north-south, h = height
   // ---------------------------------------------------------------------------
