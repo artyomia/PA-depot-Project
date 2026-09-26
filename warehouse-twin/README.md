@@ -54,7 +54,9 @@ monitored and the resolution is lowered further if needed.
 | Action                           | Mouse / keyboard                              | Touch                    |
 | -------------------------------- | --------------------------------------------- | ------------------------ |
 | Orbit                            | Left drag                                     | One finger drag          |
-| Pan                              | Right drag                                    | Two finger drag          |
+| Pan (move the map)               | Right drag, arrow keys, or hold the arrow buttons of the navigation pad | Two finger drag, arrow buttons |
+| Map mode (left drag moves the map, right drag rotates) | Hand button, switch or `M` | One finger moves the map |
+| Zoom step / fit whole site       | `+` / `-` buttons or keys, map button         | Buttons                  |
 | Zoom                             | Wheel (zooms towards the cursor)              | Pinch                    |
 | Camera presets                   | Buttons or keys `1` to `5`                    | Buttons (menu on phones) |
 | X-ray (fade roof and upper walls) | Switch or `X`                                 | Switch                   |
@@ -66,7 +68,11 @@ monitored and the resolution is lowered further if needed.
 | Pause / play the truck loop      | Button or `Space`                             | Button                   |
 
 Camera presets: **Aerial**, **Front entrance** (F1 office and portal frame), **Dock side** (east docks),
-**Inside F1** (cross aisle), **Inside F2** (dock staging aisle).
+**Inside F1** (cross aisle), **Inside F2** (dock staging aisle), **Container depot** (keys `6`) and **Whole site** (`7`).
+
+The navigation pad around the compass (bottom right) has arrows, zoom and a fit-the-whole-site button. The view
+centre shifts automatically into the space left free by the side panels, and the camera target is kept inside
+`navBounds` (config) so the map cannot be dragged away. Map mode is remembered per browser.
 
 Layers: racks, trucks and containers, landscaping (trees and shrubs), labels (3D labels and red site boundary).
 
@@ -129,7 +135,8 @@ F2 = X1 to X15 (165 250) and F1 = X15 to X30 (177 250).
 | `depot`       | West container depot: yards (blocks, tiers, 20/40 ft mix, colours), access control gates, office, number of working reach stackers and yard trucks |
 | `westApron`   | Container side: container block rows, the 5 reach stackers, trucks parked parallel to the facade  |
 | `context.evCharging` | Tractor parking and EV charging bays (50 bays, 25 dual chargers) and the charging substation |
-| `cameras`     | The five presets (`pos` and `target`, metres)                                                    |
+| `cameras`     | The seven presets (`pos` and `target`, metres)                                                   |
+| `navBounds`   | Area (metres) the camera target is allowed to move in                                            |
 
 ### Common edits
 

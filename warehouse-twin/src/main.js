@@ -244,6 +244,7 @@ async function main() {
   hoverDiv.className = 'lbl3d hover';
   const hoverLabel = new CSS2DObject(hoverDiv);
   hoverLabel.visible = false;
+  hoverLabel.renderOrder = 1000; // above the static labels
   scene.add(hoverLabel);
   const hoverBox = new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
@@ -275,6 +276,9 @@ async function main() {
     {
       onPreset: (p) => goTo(p),
       onXray: (on) => setXray(on),
+      onMapMode: (on) => setMapMode(on),
+      onPan: (x, y, down) => holdPan(x, y, down),
+      onZoom: (dir) => zoomStep(dir),
       onDusk: (on) => setDusk(on),
       onLayer: (name, on) => setLayer(name, on),
       onPause: () => {
@@ -355,6 +359,77 @@ async function main() {
     building.lamps.visible = !inside;
   }
 
+  // --- Map navigation: map mode, arrow pad / keys, zoom steps, bounds -------------------------
+  function setMapMode(on) {
+    // map mode: left drag / one finger moves the map, right drag / two fingers rotate and zoom
+    controls.mouseButtons = on
+      ? { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
+      : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+    controls.touches = on ? { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE } : { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+    ui.setMapMode(on);
+    try {
+      localStorage.setItem('pa-twin-mapmode', on ? '1' : '0');
+    } catch (e) {
+      /* storage unavailable */
+    }
+  }
+  const panHold = new THREE.Vector2(); // x = screen right, y = screen up (moves the view that way)
+  let panRelease = 0;
+  function holdPan(x, y, down) {
+    tween = null;
+    if (down) {
+      panHold.set(x, y);
+      panRelease = performance.now() + 220; // a short tap still moves a visible step
+    } else {
+      const wait = Math.max(0, panRelease - performance.now());
+      setTimeout(() => {
+        if (panHold.x === x && panHold.y === y) panHold.set(0, 0);
+      }, wait);
+    }
+    ui.setPreset(null);
+  }
+  let zoomAnim = null;
+  function zoomStep(dir) {
+    tween = null;
+    const dist = camera.position.distanceTo(controls.target);
+    const to = clamp(dist * (dir > 0 ? 0.65 : 1 / 0.65), controls.minDistance, controls.maxDistance);
+    zoomAnim = { t: 0, from: dist, to };
+    ui.setPreset(null);
+  }
+  const NB = CONFIG.navBounds;
+  const _fwd = new THREE.Vector3(), _right = new THREE.Vector3(), _delta = new THREE.Vector3();
+  function moveView(dt) {
+    const dist = camera.position.distanceTo(controls.target);
+    if (panHold.lengthSq() > 0) {
+      camera.getWorldDirection(_fwd);
+      _fwd.y = 0;
+      if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
+      _fwd.normalize();
+      _right.crossVectors(_fwd, camera.up).normalize();
+      const speed = Math.max(25, dist * 0.75);
+      _delta.copy(_right).multiplyScalar(panHold.x).addScaledVector(_fwd, panHold.y).multiplyScalar(speed * dt);
+      controls.target.add(_delta);
+      camera.position.add(_delta);
+    }
+    if (zoomAnim) {
+      zoomAnim.t = Math.min(1, zoomAnim.t + dt / 0.35);
+      const d = lerp(zoomAnim.from, zoomAnim.to, easeInOut(zoomAnim.t));
+      _delta.subVectors(camera.position, controls.target).setLength(d);
+      camera.position.copy(controls.target).add(_delta);
+      if (zoomAnim.t >= 1) zoomAnim = null;
+    }
+  }
+  // keep the map in view: clamp the orbit target to the project area (after damping)
+  function clampView() {
+    const t = controls.target;
+    const cx = clamp(t.x, NB.x0, NB.x1), cz = clamp(t.z, NB.z0, NB.z1), cy = clamp(t.y, -2, 30);
+    if (cx !== t.x || cy !== t.y || cz !== t.z) {
+      _delta.set(cx - t.x, cy - t.y, cz - t.z);
+      t.add(_delta);
+      camera.position.add(_delta);
+    }
+  }
+
   // --- Camera presets ------------------------------------------------------------------------
   let tween = null;
   function goTo(name, dur = 1.9) {
@@ -365,6 +440,8 @@ async function main() {
     const dist = camera.position.distanceTo(toPos);
     const inside = (v) => Math.abs(v.x) < BUILD_W / 2 && Math.abs(v.z) < BUILD_L / 2 && v.y < 16;
     const lift = inside(toPos) || inside(camera.position) ? 0 : Math.min(120, dist * 0.18);
+    zoomAnim = null;
+    panHold.set(0, 0);
     tween = { t: 0, dur, fromPos: camera.position.clone(), fromTgt: controls.target.clone(), toPos, toTgt, lift };
     ui.setPreset(name);
     if (name.startsWith('inside') && xrayTarget) setXray(false);
@@ -471,11 +548,20 @@ async function main() {
   });
 
   // --- Keyboard shortcuts -----------------------------------------------------------------------
-  const presetKeys = ['aerial', 'entrance', 'dock', 'insideF1', 'insideF2'];
+  const presetKeys = ['aerial', 'entrance', 'dock', 'insideF1', 'insideF2', 'depot', 'site'];
+  const arrowKeys = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, 1], arrowdown: [0, -1] };
   window.addEventListener('keydown', (e) => {
     if (e.target.closest && e.target.closest('input, textarea')) return;
     const k = e.key.toLowerCase();
-    if (k >= '1' && k <= '5') goTo(presetKeys[+k - 1]);
+    if (arrowKeys[k]) {
+      if (!e.repeat) holdPan(...arrowKeys[k], true);
+      e.preventDefault();
+      return;
+    }
+    if (k >= '1' && k <= '7') goTo(presetKeys[+k - 1]);
+    else if (k === '+' || k === '=') zoomStep(1);
+    else if (k === '-' || k === '_') zoomStep(-1);
+    else if (k === 'm') setMapMode(controls.mouseButtons.LEFT !== THREE.MOUSE.PAN);
     else if (k === 'x') setXray(!xrayTarget);
     else if (k === 'd') setDusk(!duskTarget);
     else if (k === 'l') setLayer('labels', !labelGroup.visible);
@@ -486,6 +572,21 @@ async function main() {
       e.preventDefault();
     } else if (k === 'escape') select(null);
   });
+
+  window.addEventListener('keyup', (e) => {
+    const a = arrowKeys[e.key.toLowerCase()];
+    if (a) holdPan(a[0], a[1], false);
+  });
+  window.addEventListener('blur', () => panHold.set(0, 0));
+  {
+    let stored = null;
+    try {
+      stored = localStorage.getItem('pa-twin-mapmode');
+    } catch (e) {
+      /* storage unavailable */
+    }
+    setMapMode(stored === '1');
+  }
 
   // --- Resize --------------------------------------------------------------------------------
   function resize() {
@@ -509,7 +610,7 @@ async function main() {
   window.twin = { scene, camera, controls, renderer, goTo, setXray, setDusk, setLayer, select, trucks, racks, building, site, depot, config: CONFIG, LIGHT, applyLight, hemi, sun, M };
 
   let last = performance.now();
-  let frames = 0, acc = 0, shadowTick = 0, occT = 1;
+  let frames = 0, acc = 0, shadowTick = 0, occT = 1, viewShift = 0, viewShiftTarget = 0, insetT = 1;
   // low power devices refresh the (moving truck) shadows every second frame
   if (lowPower) renderer.shadowMap.autoUpdate = false;
   renderer.shadowMap.needsUpdate = true;
@@ -555,7 +656,9 @@ async function main() {
       s.userData.fill.material.opacity = 0.07 + 0.06 * (0.5 + 0.5 * Math.sin(performance.now() / 350));
     }
 
+    moveView(dt);
     controls.update();
+    clampView();
 
     // adaptive near plane: better depth precision when zoomed out
     const dist = camera.position.distanceTo(controls.target);
@@ -578,6 +681,21 @@ async function main() {
     }
 
     if (lowPower && ++shadowTick % 2 === 0) renderer.shadowMap.needsUpdate = true;
+
+    // centre the view in the space left free by the side panels (smooth when a panel opens / closes)
+    insetT += dt;
+    if (insetT > 0.15 || Math.abs(viewShift - viewShiftTarget) > 0.5) {
+      if (insetT > 0.15) {
+        insetT = 0;
+        const ins = ui.insets();
+        viewShiftTarget = Math.round((ins.left - ins.right) / 2);
+      }
+      viewShift += (viewShiftTarget - viewShift) * Math.min(1, dt * 6);
+      if (Math.abs(viewShift - viewShiftTarget) < 0.5) viewShift = viewShiftTarget;
+      const w = window.innerWidth, h = window.innerHeight;
+      if (Math.abs(viewShift) < 0.5) camera.clearViewOffset();
+      else camera.setViewOffset(w, h, -viewShift, 0, w, h);
+    }
 
     occT += dt;
     if (labelGroup.visible && (occT > 0.2 || tween)) {

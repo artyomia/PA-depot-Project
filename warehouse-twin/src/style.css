@@ -597,12 +597,55 @@ body.dusk .brand .brand-mark svg polygon[fill='#2b3990'] {
   display: none;
 }
 
-.compass {
+.nav {
   position: absolute;
   right: calc(300px + 2 * var(--gap));
   bottom: var(--gap);
-  width: 54px;
-  height: 54px;
+  display: grid;
+  grid-template-columns: repeat(3, 40px);
+  grid-template-rows: repeat(3, 40px);
+  gap: 4px;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.nb {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+
+.nb:hover {
+  border-color: rgba(29, 95, 184, 0.45);
+}
+
+.nb:active,
+.nb.on {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+.nb:active {
+  transform: scale(0.94);
+}
+
+.compass {
+  position: relative;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -613,7 +656,7 @@ body.dusk .brand .brand-mark svg polygon[fill='#2b3990'] {
 
 .compass .needle {
   position: absolute;
-  inset: 6px;
+  inset: 2px;
   transition: transform 0.08s linear;
 }
 
@@ -652,7 +695,10 @@ body.dusk .brand .brand-mark svg polygon[fill='#2b3990'] {
 
 .hint {
   position: absolute;
-  bottom: calc(var(--gap) + 66px);
+  top: var(--gap);
+  max-width: calc(100% - 660px);
+  white-space: normal !important;
+  text-align: center;
   transition: opacity 0.6s;
   left: 50%;
   transform: translateX(-50%);
@@ -835,7 +881,7 @@ body.dusk .brand .brand-mark svg polygon[fill='#2b3990'] {
   .col.right {
     width: 270px;
   }
-  .compass {
+  .nav {
     right: calc(270px + 2 * var(--gap));
   }
   .hint {
@@ -861,8 +907,20 @@ body.dusk .brand .brand-mark svg polygon[fill='#2b3990'] {
   .legend {
     display: none;
   }
-  .compass {
+  .nav {
     right: var(--gap);
+    bottom: auto;
+    top: var(--gap);
+    grid-template-columns: repeat(3, 36px);
+    grid-template-rows: repeat(3, 36px);
+  }
+  .nav .nb {
+    width: 36px;
+    height: 36px;
+  }
+  .nav .compass {
+    width: 36px;
+    height: 36px;
   }
   .col.right {
     top: auto;

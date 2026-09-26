@@ -13,6 +13,9 @@ const ICONS = {
   entrance: '<svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="14" rx="1"/><path d="M10 20v-6h4v6"/></svg>',
   dock: '<svg viewBox="0 0 24 24"><rect x="2" y="9" width="12" height="7" rx="1"/><path d="M14 11h4l3 3v2h-7z"/><circle cx="6" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>',
   inside: '<svg viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12"/><path d="M8 20v-8M12 20v-8M16 20v-8"/></svg>',
+  depot: '<svg viewBox="0 0 24 24"><rect x="3" y="12" width="8" height="7"/><rect x="13" y="12" width="8" height="7"/><rect x="8" y="5" width="8" height="7"/></svg>',
+  site: '<svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>',
+  hand: '<svg viewBox="0 0 24 24"><path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V10m0-5.5a1.5 1.5 0 0 1 3 0V10m0-3.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3.5 14a1.5 1.5 0 0 1 2.4-1.8L8 14.5"/></svg>',
 };
 
 export function createUI(root, handlers, figures) {
@@ -42,10 +45,13 @@ export function createUI(root, handlers, figures) {
           <button data-preset="dock">${ICONS.dock}<span>Dock side</span><kbd>3</kbd></button>
           <button data-preset="insideF1">${ICONS.inside}<span>Inside F1</span><kbd>4</kbd></button>
           <button data-preset="insideF2">${ICONS.inside}<span>Inside F2</span><kbd>5</kbd></button>
+          <button data-preset="depot">${ICONS.depot}<span>Container depot</span><kbd>6</kbd></button>
+          <button data-preset="site">${ICONS.site}<span>Whole site</span><kbd>7</kbd></button>
         </div>
       </section>
       <section>
         <h3>Display</h3>
+        <label class="switch"><input type="checkbox" data-toggle="mapmode"><span class="track"></span><span class="lbl">Map mode <small>drag to move the map</small></span><kbd>M</kbd></label>
         <label class="switch"><input type="checkbox" data-toggle="xray"><span class="track"></span><span class="lbl">X-ray <small>roof &amp; upper walls</small></span><kbd>X</kbd></label>
         <div class="seg" role="group" aria-label="Lighting">
           <button data-light="day" class="on">
@@ -100,10 +106,20 @@ export function createUI(root, handlers, figures) {
     </div>
 
 
-    <div class="compass" title="North">
-      <div class="needle"><span>N</span></div>
+    <div class="nav" role="group" aria-label="Map navigation">
+      <button class="nb" data-act="home" title="Fit the whole site" aria-label="Fit the whole site">${ICONS.site}</button>
+      <button class="nb" data-pan="0,1" title="Move up (arrow key)" aria-label="Move map up"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+      <button class="nb" data-zoom="1" title="Zoom in (+)" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="nb" data-pan="-1,0" title="Move left (arrow key)" aria-label="Move map left"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="compass" title="North">
+        <div class="needle"><span>N</span></div>
+      </div>
+      <button class="nb" data-pan="1,0" title="Move right (arrow key)" aria-label="Move map right"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button class="nb" data-act="mapmode" title="Map mode: drag to move the map (M)" aria-label="Map mode">${ICONS.hand}</button>
+      <button class="nb" data-pan="0,-1" title="Move down (arrow key)" aria-label="Move map down"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+      <button class="nb" data-zoom="-1" title="Zoom out (-)" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
     </div>
-    <div class="hint">Drag to orbit &nbsp;|&nbsp; right-drag or two fingers to pan &nbsp;|&nbsp; scroll or pinch to zoom &nbsp;|&nbsp; click F1 or F2 for details</div>
+    <div class="hint">Drag to orbit &nbsp;|&nbsp; right-drag, two fingers or the arrows to move the map &nbsp;|&nbsp; scroll or pinch to zoom &nbsp;|&nbsp; click F1 or F2 for details</div>
   `;
   root.appendChild(el);
 
@@ -146,6 +162,26 @@ export function createUI(root, handlers, figures) {
     }),
   );
   $('[data-toggle="xray"]').addEventListener('change', (e) => handlers.onXray(e.target.checked));
+  $('[data-toggle="mapmode"]').addEventListener('change', (e) => handlers.onMapMode(e.target.checked));
+  $('[data-act="mapmode"]').addEventListener('click', () => handlers.onMapMode(!$('[data-toggle="mapmode"]').checked));
+  $('[data-act="home"]').addEventListener('click', () => handlers.onPreset('site'));
+  $$('[data-zoom]').forEach((b) => b.addEventListener('click', () => handlers.onZoom(+b.dataset.zoom)));
+  // arrows: hold to keep moving (pointer events work for mouse and touch)
+  $$('[data-pan]').forEach((b) => {
+    const [x, y] = b.dataset.pan.split(',').map(Number);
+    const stop = (e) => {
+      if (b.hasPointerCapture?.(e.pointerId)) b.releasePointerCapture(e.pointerId);
+      handlers.onPan(x, y, false);
+    };
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      b.setPointerCapture?.(e.pointerId);
+      handlers.onPan(x, y, true);
+    });
+    b.addEventListener('pointerup', stop);
+    b.addEventListener('pointercancel', stop);
+    b.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
   $$('[data-light]').forEach((b) => b.addEventListener('click', () => handlers.onDusk(b.dataset.light === 'dusk')));
   $$('[data-layer]').forEach((c) => c.addEventListener('change', () => handlers.onLayer(c.dataset.layer, c.checked)));
   $('[data-act="pause"]').addEventListener('click', () => handlers.onPause());
@@ -156,11 +192,27 @@ export function createUI(root, handlers, figures) {
 
   return {
     root: el,
+    /** Horizontal screen space (px) covered by the side panels, used to centre the 3D view in the free area. */
+    insets() {
+      if (small()) return { left: 0, right: 0 };
+      const r = (e) => e.getBoundingClientRect();
+      const left = controls.classList.contains('collapsed') ? 0 : r(controls).right;
+      const right = figs.classList.contains('collapsed') ? 0 : window.innerWidth - r(figs).left;
+      return { left, right };
+    },
     toggleControls() {
       setCollapsed(!controls.classList.contains('collapsed'));
     },
     setPreset(name) {
       $$('[data-preset]').forEach((b) => b.classList.toggle('on', b.dataset.preset === name));
+    },
+    setMapMode(on) {
+      $('[data-toggle="mapmode"]').checked = on;
+      $('[data-act="mapmode"]').classList.toggle('on', on);
+      const h = $('.hint');
+      if (h) h.innerHTML = on
+        ? 'Drag to move the map &nbsp;|&nbsp; right-drag or two-finger twist to rotate &nbsp;|&nbsp; scroll or pinch to zoom'
+        : 'Drag to orbit &nbsp;|&nbsp; right-drag, two fingers or the arrows to move the map &nbsp;|&nbsp; scroll or pinch to zoom &nbsp;|&nbsp; click F1 or F2 for details';
     },
     setXray(on) {
       $('[data-toggle="xray"]').checked = on;

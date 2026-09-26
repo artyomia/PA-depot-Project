@@ -349,5 +349,9 @@ export const CONFIG = {
     dock: { pos: [80, 11, 78], target: [49, 3.5, 26] },
     insideF1: { pos: [4.35, 11.5, -163], target: [4.35, 4.5, -80] },
     insideF2: { pos: [43.5, 8, 166], target: [36, 3.5, 90] },
+    depot: { pos: [-110, 270, 350], target: [-290, 0, 25] },
+    site: { pos: [-30, 560, 470], target: [-260, 0, 0] },
   },
+  // Navigation limits for the camera target (metres): the map cannot be dragged away from the project
+  navBounds: { x0: -640, x1: 170, z0: -290, z1: 290 },
 };
