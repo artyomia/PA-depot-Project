@@ -76,12 +76,36 @@ centre shifts automatically into the space left free by the side panels, and the
 
 Layers: racks, trucks and containers, landscaping (trees and shrubs), labels (3D labels and red site boundary).
 
+### Performance (smooth on modest laptops)
+
+The **Performance** selector in the Display section (remembered per browser) offers:
+
+| Profile      | What it does                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------------ |
+| **Auto**     | Default. Picks a profile from the graphics card (integrated Intel / AMD graphics start on Balanced), then watches the real frame rate: it lowers the render resolution a little first and steps down a profile if that is not enough |
+| **High**     | Full resolution (up to 2x on high-DPI screens), 4096 shadow map refreshed every frame, clouds   |
+| **Balanced** | Resolution up to 1.25x, 2048 shadow map refreshed every 2nd frame                              |
+| **Light**    | For modest laptops: resolution 1x (down to 0.7x if needed), static shadows (moving vehicles cast none), no clouds, no anti-aliasing, steady 30 fps (even frame pacing feels smoother than a frame rate jumping between 40 and 50) |
+
+The line under the title shows the active profile, the measured frame rate and the render resolution.
+For every profile the pallet racks are only drawn when they can be seen (x-ray, inside, or close to the dock
+doors), label occlusion uses the building volumes, and hover picking is limited to 15 checks per second.
+
+Tips for a presentation laptop: plug in the charger (Windows throttles the graphics card on battery),
+use Chrome or Edge, close other heavy tabs, and on laptops with two graphics cards set the browser to
+"High performance" in Windows Settings > System > Display > Graphics.
+
 ### URL options
 
-Append to the address, for example `index.html?quality=low`:
+Append to the address, for example `index.html?quality=light`:
 
-| Option            | Effect                                                                  |
-| ----------------- | ----------------------------------------------------------------------- |
+| Option                  | Effect                                                            |
+| ----------------------- | ----------------------------------------------------------------- |
+| `quality=auto` / `high` / `balanced` / `light` | Start with this profile (overrides the saved choice) |
+| `shadows=0`             | Disable shadows completely (for very old devices)                 |
+| `tm=aces` / `tm=agx`    | Alternative tone mapping (default is Khronos PBR Neutral)          |
+
+----------------- | ----------------------------------------------------------------------- |
 | `quality=low`     | Force the light profile (2048 shadow map, shadow refresh every 2nd frame) |
 | `quality=high`    | Force the full profile even on tablets                                  |
 | `shadows=0`       | Disable shadows (for very old devices)                                  |
@@ -183,6 +207,7 @@ warehouse-twin/
     ui.js             overlay panels, info card, legend, compass
     depot.js          container depot: container blocks, access control gates, office, animated yard trucks
                       and reach stackers (pick and place loop)
+    perf.js           performance profiles (Auto / High / Balanced / Light) and adaptive quality
     logo.js           Phuoc An brand mark (traced from the supplied artwork) for roof, panels, UI, favicon
     materials.js      procedural canvas textures and shared materials
     util.js           geometry helpers (metre based UVs, merging, instancing)

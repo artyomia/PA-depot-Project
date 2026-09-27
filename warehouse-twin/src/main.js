@@ -13,6 +13,7 @@ import { buildTrucks } from './trucks.js';
 import { buildDepot } from './depot.js';
 import { createUI, warehouseInfoHTML } from './ui.js';
 import { m, BUILD_L, BUILD_W, clamp, lerp, easeInOut } from './util.js';
+import { PerfController, detectProfile } from './perf.js';
 
 const app = document.getElementById('app');
 const loader = document.getElementById('loader');
@@ -48,25 +49,34 @@ function sunDir(elev, azim) {
 async function main() {
   // --- WebGL check -------------------------------------------------------------------
   const test = document.createElement('canvas');
-  if (!(test.getContext('webgl2') || test.getContext('webgl'))) {
+  const probe = test.getContext('webgl2') || test.getContext('webgl');
+  if (!probe) {
     loader.innerHTML = '<div class="webgl-error">This presentation needs WebGL. Please open it in a recent Chrome, Edge, Safari or Firefox.</div>';
     return;
   }
 
-  // URL options: ?quality=low|high  &shadows=0  &dpr=1.5
+  // Performance: ?quality=auto|high|balanced|light (low = light), else the viewer's last choice, else auto
   const params = new URLSearchParams(location.search);
   const coarse = matchMedia('(pointer: coarse)').matches;
-  const q = params.get('quality');
-  const lowPower = q === 'low' || (q !== 'high' && (coarse || (navigator.hardwareConcurrency || 8) <= 4));
+  const detected = detectProfile(probe, coarse);
+  probe.getExtension('WEBGL_lose_context')?.loseContext();
+  let qMode = (params.get('quality') || '').toLowerCase().replace('low', 'light');
+  if (!['auto', 'high', 'balanced', 'light'].includes(qMode)) {
+    try {
+      qMode = localStorage.getItem('pa-twin-quality') || 'auto';
+    } catch (e) {
+      qMode = 'auto';
+    }
+  }
+  const startProfile = qMode === 'auto' ? detected.profile : qMode;
   const shadowsOn = params.get('shadows') !== '0';
-  const maxDpr = params.get('dpr') ? +params.get('dpr') : Math.min(window.devicePixelRatio || 1, lowPower ? 1.6 : 2);
-  let dpr = maxDpr;
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  // MSAA is fixed when the renderer is created: skip it when starting in the light profile
+  const renderer = new THREE.WebGLRenderer({ antialias: startProfile !== 'light', powerPreference: 'high-performance' });
   // Windows (ANGLE / Direct3D) prints harmless precision notes (warning X4122) for three.js shaders;
   // keep shader log checks for development only so the presentation console stays clean.
   renderer.debug.checkShaderErrors = import.meta.env.DEV;
-  renderer.setPixelRatio(dpr);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
   renderer.setSize(window.innerWidth, window.innerHeight);
   const TONE = { aces: THREE.ACESFilmicToneMapping, agx: THREE.AgXToneMapping, neutral: THREE.NeutralToneMapping };
   renderer.toneMapping = TONE[params.get('tm')] ?? THREE.NeutralToneMapping;
@@ -133,7 +143,7 @@ async function main() {
   scene.add(hemi);
   const sun = new THREE.DirectionalLight('#ffffff', 3);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(lowPower ? 2048 : 4096, lowPower ? 2048 : 4096);
+  sun.shadow.mapSize.set(2048, 2048);
   const sc = sun.shadow.camera;
   sc.left = -235;
   sc.right = 235;
@@ -146,6 +156,25 @@ async function main() {
   sun.shadow.radius = 2.5;
   sun.target.position.set(0, 0, 0);
   scene.add(sun, sun.target);
+
+  // adaptive performance controller (profile, resolution, shadow refresh, fps cap)
+  const dynamicMeshes = [];
+  scene.traverse((o) => o.isMesh && o.userData.dynamic && dynamicMeshes.push(o));
+  let uiRef = null;
+  let lightReady = false;
+  let lastProfile = null;
+  const perf = new PerfController({
+    renderer,
+    sun,
+    dynamicMeshes,
+    detected: detected.profile,
+    initialMode: qMode,
+    onChange: (name, info) => {
+      uiRef?.setPerf(info);
+      if (lightReady && name !== lastProfile) applyLight(duskK, false); // clouds on / off
+      lastProfile = name;
+    },
+  });
 
   const sky = new Sky();
   sky.scale.setScalar(5000);
@@ -194,7 +223,8 @@ async function main() {
       u.mieCoefficient.value = lerp(D.mie, N.mie, k);
       u.mieDirectionalG.value = lerp(D.mieG, N.mieG, k);
     }
-    sky.material.uniforms.cloudCoverage.value = lerp(D.clouds, N.clouds, k);
+    sky.material.uniforms.cloudCoverage.value = perf.p.clouds ? lerp(D.clouds, N.clouds, k) : 0;
+    perf.invalidateShadows();
     // emissive accents: lamps, glass, wall light strips, skylights
     const e = clamp((k - 0.25) / 0.75, 0, 1);
     M.lamp.emissiveIntensity = lerp(0.5, 2.6, e);
@@ -213,6 +243,7 @@ async function main() {
     }
   }
   applyLight(0, true);
+  lightReady = true;
 
   // --- Labels ----------------------------------------------------------------------------------
   const labelGroup = new THREE.Group();
@@ -279,6 +310,14 @@ async function main() {
     {
       onPreset: (p) => goTo(p),
       onXray: (on) => setXray(on),
+      onQuality: (mode) => {
+        perf.setMode(mode);
+        try {
+          localStorage.setItem('pa-twin-quality', mode);
+        } catch (e) {
+          /* storage unavailable */
+        }
+      },
       onMapMode: (on) => setMapMode(on),
       onPan: (x, y, down) => holdPan(x, y, down),
       onZoom: (dir) => zoomStep(dir),
@@ -298,12 +337,15 @@ async function main() {
     figures,
   );
 
+  let racksOn = true;
   function setLayer(name, on) {
+    if (name === 'racks') racksOn = on;
     if (name === 'labels') {
       labelGroup.visible = on;
       site.labels.visible = on;
     } else if (layers[name]) layers[name].visible = on;
     ui.setLayer(name, on);
+    perf.invalidateShadows();
   }
 
   let xray = 0, xrayTarget = 0;
@@ -360,6 +402,7 @@ async function main() {
     for (const o of roofCasters) o.castShadow = !inside;
     for (const o of racks.userData.casters) o.castShadow = inside;
     building.lamps.visible = !inside;
+    perf.invalidateShadows();
   }
 
   // --- Map navigation: map mode, arrow pad / keys, zoom steps, bounds -------------------------
@@ -463,18 +506,24 @@ async function main() {
   controls.update();
 
   // --- Label occlusion: hide site labels that sit behind the buildings ----------------------
-  const occluders = [];
-  for (const W of Object.values(building.warehouses)) occluders.push(...W.pick.filter((o) => o.material !== M.floor));
-  const occRay = new THREE.Raycaster();
-  const occDir = new THREE.Vector3();
+  // cheap test against the building volumes (boxes) instead of raycasting thousands of triangles
+  const occBoxes = Object.values(building.warehouses).map((W) => {
+    const b = new THREE.Box3();
+    for (const o of W.pick) if (o.material !== M.floor) b.expandByObject(o);
+    b.max.y = CONFIG.levels.eave / 1000 + 1; // eave height: labels above the ridge line stay visible
+    return b;
+  });
+  const occRay = new THREE.Ray();
+  const occDir = new THREE.Vector3(), occHit = new THREE.Vector3(), occP = new THREE.Vector3();
+  const occLabels = [...occludable, ...whOcclude];
   function updateOcclusion() {
     const cam = camera.position;
-    for (const lbl of [...occludable, ...whOcclude]) {
-      const p = lbl.getWorldPosition(new THREE.Vector3());
-      const d = occDir.subVectors(p, cam).length();
+    for (const lbl of occLabels) {
+      lbl.getWorldPosition(occP);
+      const d = occDir.subVectors(occP, cam).length();
       occRay.set(cam, occDir.normalize());
-      occRay.far = d - 1;
-      const hit = xray < 0.5 && occRay.intersectObjects(occluders, false).length > 0;
+      let hit = false;
+      if (xray < 0.5) for (const b of occBoxes) if (!b.containsPoint(occP) && occRay.intersectBox(b, occHit) && occHit.distanceTo(cam) < d - 1) hit = true;
       lbl.element.classList.toggle('occluded', hit || d > 1500);
     }
   }
@@ -610,18 +659,20 @@ async function main() {
   progress(1, 'Ready');
 
   // expose for debugging / automated screenshots
-  window.twin = { scene, camera, controls, renderer, goTo, setXray, setDusk, setLayer, select, trucks, racks, building, site, depot, config: CONFIG, LIGHT, applyLight, hemi, sun, M };
+  window.twin = { scene, camera, controls, renderer, goTo, setXray, setDusk, setLayer, select, trucks, racks, building, site, depot, perf, config: CONFIG, LIGHT, applyLight, hemi, sun, M };
 
   let last = performance.now();
-  let frames = 0, acc = 0, shadowTick = 0, occT = 1, viewShift = 0, viewShiftTarget = 0, insetT = 1;
-  // low power devices refresh the (moving truck) shadows every second frame
-  if (lowPower) renderer.shadowMap.autoUpdate = false;
-  renderer.shadowMap.needsUpdate = true;
+  let occT = 1, viewShift = 0, viewShiftTarget = 0, insetT = 1, hoverT = 1;
+  uiRef = ui;
+  ui.setQuality(qMode);
+  ui.setPerf(perf.info());
+  if (!shadowsOn) renderer.shadowMap.enabled = false;
   const fwd = new THREE.Vector3();
   let started = false;
 
   renderer.setAnimationLoop(() => {
     const now = performance.now();
+    if (!perf.shouldRender(now)) return; // fps cap in the light profile
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
 
@@ -676,14 +727,15 @@ async function main() {
     ui.setCompass(-THREE.MathUtils.radToDeg(Math.atan2(fwd.x, -fwd.z)));
 
     // hover picking (mouse)
-    if (pendingHover) {
+    hoverT += dt;
+    if (pendingHover && hoverT > 1 / 15) {
+      hoverT = 0;
       const o = pick(pendingHover.x, pendingHover.y);
       showHover(o && o.userData.anc !== undefined ? o.userData.anc : -1);
       cv.style.cursor = o && (o.userData.anc !== undefined || o.userData.pick) ? 'pointer' : '';
       pendingHover = null;
     }
 
-    if (lowPower && ++shadowTick % 2 === 0) renderer.shadowMap.needsUpdate = true;
 
     // centre the view in the space left free by the side panels (smooth when a panel opens / closes)
     insetT += dt;
@@ -706,21 +758,18 @@ async function main() {
       updateOcclusion();
     }
 
+    // racks are hidden by the roof from outside: only draw them when they can be seen
+    // (x-ray, camera inside, or close enough to look in through the dock doors)
+    {
+      const c = camera.position;
+      const dx = Math.max(0, Math.abs(c.x) - BUILD_W / 2), dz = Math.max(0, Math.abs(c.z) - BUILD_L / 2);
+      racks.visible = racksOn && (xray > 0.01 || Math.hypot(dx, dz) < 70);
+    }
+
+    perf.beforeRender();
     renderer.render(scene, camera);
     labelRenderer.render(scene, camera);
-
-    // adaptive resolution if the device struggles
-    frames++;
-    acc += dt;
-    if (acc > 2.5) {
-      const avg = acc / frames;
-      if (avg > 0.04 && dpr > 1) {
-        dpr = Math.max(1, dpr - 0.25);
-        renderer.setPixelRatio(dpr);
-      }
-      frames = 0;
-      acc = 0;
-    }
+    perf.afterRender(now); // adaptive resolution / profile
 
     if (!started) {
       started = true;

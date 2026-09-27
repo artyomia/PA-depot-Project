@@ -362,6 +362,35 @@ body.dusk .brand .brand-mark svg polygon[fill='#2b3990'] {
   border-radius: 11px;
 }
 
+.perf {
+  margin-top: 10px;
+}
+
+.perf-head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-weight: 600;
+}
+
+.perf .fps {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.seg.seg4 {
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 6px;
+}
+
+.seg.seg4 button {
+  padding: 6px 2px;
+  font-size: 11.5px;
+}
+
 .seg button {
   display: flex;
   align-items: center;

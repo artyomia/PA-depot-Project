@@ -65,6 +65,7 @@ class PartSet {
       im.receiveShadow = k === 'container' || k === 'body';
       im.frustumCulled = false;
       im.userData.key = k;
+      im.userData.dynamic = true;
       if (k === colorKey) for (let i = 0; i < count; i++) im.setColorAt(i, new THREE.Color('#ffffff'));
       group.add(im);
       this.meshes.push(im);

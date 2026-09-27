@@ -59,6 +59,15 @@ export function createUI(root, handlers, figures) {
           <button data-light="dusk">
             <svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>Dusk</button>
         </div>
+        <div class="perf">
+          <div class="perf-head"><span>Performance</span><span class="fps" id="fps" title="Measured frame rate and render resolution">...</span></div>
+          <div class="seg seg4" role="group" aria-label="Performance">
+            <button data-q="auto" title="Adapts to this computer automatically">Auto</button>
+            <button data-q="high" title="Full resolution and live shadows (strong graphics card)">High</button>
+            <button data-q="balanced" title="Lower resolution, shadows updated every 2nd frame">Balanced</button>
+            <button data-q="light" title="For modest laptops: static shadows, no clouds, steady 30 fps">Light</button>
+          </div>
+        </div>
       </section>
       <section>
         <h3>Layers</h3>
@@ -185,6 +194,12 @@ export function createUI(root, handlers, figures) {
     b.addEventListener('contextmenu', (e) => e.preventDefault());
   });
   $$('[data-light]').forEach((b) => b.addEventListener('click', () => handlers.onDusk(b.dataset.light === 'dusk')));
+  $$('[data-q]').forEach((b) =>
+    b.addEventListener('click', () => {
+      handlers.onQuality(b.dataset.q);
+      $$('[data-q]').forEach((x) => x.classList.toggle('on', x === b));
+    }),
+  );
   $$('[data-layer]').forEach((c) => c.addEventListener('change', () => handlers.onLayer(c.dataset.layer, c.checked)));
   $('[data-act="pause"]').addEventListener('click', () => handlers.onPause());
   $('[data-act="fullscreen"]').addEventListener('click', () => handlers.onFullscreen());
@@ -207,6 +222,15 @@ export function createUI(root, handlers, figures) {
     },
     setPreset(name) {
       $$('[data-preset]').forEach((b) => b.classList.toggle('on', b.dataset.preset === name));
+    },
+    setQuality(mode) {
+      $$('[data-q]').forEach((x) => x.classList.toggle('on', x.dataset.q === mode));
+    },
+    setPerf(info) {
+      const f = $('#fps');
+      if (!f) return;
+      const fps = info.fps ? `${Math.round(info.fps)} fps` : 'measuring';
+      f.textContent = `${info.mode === 'auto' ? `Auto: ${info.label}` : info.label}  |  ${fps}  |  ${info.dpr.toFixed(2)}x`;
     },
     setMapMode(on) {
       $('[data-toggle="mapmode"]').checked = on;

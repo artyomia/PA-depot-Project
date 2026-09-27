@@ -344,6 +344,7 @@ export function buildTrucks(M, doors, parkingBays = [], evBays = []) {
         }
         const me = new THREE.Mesh(geo, own[k]);
         me.castShadow = true;
+        me.userData.dynamic = true;
         me.receiveShadow = k === 'container';
         g.add(me);
       }
