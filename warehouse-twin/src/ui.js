@@ -100,6 +100,8 @@ export function createUI(root, handlers, figures) {
         <li><i style="background:#50545a"></i>Roads</li>
         <li><i style="background:#6f9a4f"></i>Green areas</li>
         <li><i class="dash"></i>Site boundary</li>
+        <li><i class="ring" style="border-color:#1e7bff"></i>MNR done</li>
+        <li><i class="ring" style="border-color:#ff9800"></i>Awaiting MNR</li>
         <li><i style="background:linear-gradient(90deg,#2d63b5 50%,#ec7a22 50%)"></i>Pallet racks</li>
       </ul>
     </div>

@@ -582,6 +582,11 @@ body.dusk .brand .brand-mark svg polygon[fill='#2b3990'] {
   flex: none;
 }
 
+.legend i.ring {
+  background: transparent;
+  border: 2px solid;
+}
+
 .legend i.dash {
   height: 0;
   border-top: 2px dashed #e0312b;

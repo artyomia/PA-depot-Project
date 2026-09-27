@@ -53,7 +53,7 @@ export function tractorParts() {
 // Reach stacker (local: +x = boom direction, origin at the chassis centre on the ground)
 const RS_REACH = 9.0; // horizontal distance from chassis centre to the spreader
 const RS_SPREADER_Y = 8.2;
-function reachStackerParts() {
+export function reachStackerParts() {
   const p = { body: [], dark: [], tyre: [], glass: [] };
   p.body.push(bx(7.6, 1.4, 3.4, 0, 1.6, 0)); // chassis
   p.body.push(bx(1.5, 2.2, 3.4, -3.9, 2.0, 0)); // counterweight

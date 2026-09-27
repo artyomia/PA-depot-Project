@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { m, BUILD_L, BUILD_W, Y_YARD, merge, mesh, instanced, trs, rng, worldUV, flatRect, clamp } from './util.js';
 import { logoCanvas } from './materials.js';
-import { LT, LC, LTOT, bx, wheel, trailerParts, tractorParts, mergedParts, partMaterial, fillet, Path, fixContainerUV } from './trucks.js';
+import { LT, LC, LTOT, bx, wheel, trailerParts, tractorParts, mergedParts, partMaterial, fillet, Path, fixContainerUV, reachStackerParts } from './trucks.js';
 
 /**
  * Container depot in the west yard (master plan REV02):
@@ -106,6 +106,8 @@ export function buildDepot(M, ancillary) {
   const sw = m(D.slotWidth), cl = m(D.cellLength), aisle = m(D.aisle), margin = m(D.margin);
   const colW = D.slots * sw;
   const colorOf = () => new THREE.Color(pick(D.containerColors));
+  const strips = []; // facility strips replacing the first block row { yd, kind, x0, x1, z0, z1 }
+  const outlines = []; // painted lines around marked blocks
 
   for (const yd of D.yards) {
     const X0 = m(yd.x0), X1 = m(yd.x1), Z0 = m(yd.z0), Z1 = m(yd.z1);
@@ -123,6 +125,16 @@ export function buildDepot(M, ancillary) {
 
     for (let c = 0; c < nCol; c++) {
       const cb0 = bStart + c * (colW + aisle);
+      if (yd.strip && c === 0) {
+        // first block row (next to road N1) becomes the facility strip
+        strips.push({ yd, kind: yd.strip, x0: X0, x1: X1, z0: Z0, z1: cb0 + colW + aisle * 0.5 });
+        continue;
+      }
+      if (yd.outline && c === (yd.strip ? 1 : 0)) {
+        const [ax0, az0] = toXZ(aStart, cb0);
+        const [ax1, az1] = toXZ(aStart + nCell * cl, cb0 + colW);
+        outlines.push({ ...yd.outline, x0: ax0, x1: ax1, z0: az0, z1: az1 });
+      }
       const blockH = D.maxTiers - Math.floor(rand() * 2); // blocks are stacked fairly evenly (4 to 5 high)
       // ground slot markings for the block
       {
@@ -166,10 +178,169 @@ export function buildDepot(M, ancillary) {
         k += span;
       }
     }
-    // zone label
-    anchors.push({ text: yd.name, cls: 'zone', pos: [(X0 + X1) / 2, Y_YARD + 16, (Z0 + Z1) / 2] });
+    // zone label (yards with marked blocks are labelled per block instead)
+    if (!yd.outline) anchors.push({ text: yd.name, cls: 'zone', pos: [(X0 + X1) / 2, Y_YARD + 16, (Z0 + Z1) / 2] });
   }
   const g20 = containerGeo(6.06), g40 = containerGeo(12.19);
+
+  // --- painted outlines around the marked blocks (MNR done / awaiting MNR) ---------------
+  const lineW = 0.9, off = 1.8;
+  for (const o of outlines) {
+    const x0 = Math.min(o.x0, o.x1) - off, x1 = Math.max(o.x0, o.x1) + off;
+    const z0 = Math.min(o.z0, o.z1) - off, z1 = Math.max(o.z0, o.z1) + off;
+    const y = Y_YARD + 0.075;
+    const lines = merge([
+      bx(x1 - x0 + lineW, 0.02, lineW, (x0 + x1) / 2, y, z0),
+      bx(x1 - x0 + lineW, 0.02, lineW, (x0 + x1) / 2, y, z1),
+      bx(lineW, 0.02, z1 - z0, x0, y, (z0 + z1) / 2),
+      bx(lineW, 0.02, z1 - z0, x1, y, (z0 + z1) / 2),
+    ]);
+    const mat = new THREE.MeshStandardMaterial({ color: o.color, emissive: o.color, emissiveIntensity: 0.35, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -8 });
+    statics.add(mesh(lines, mat, { cast: false }));
+    // corner posts with a coloured cap, visible from low angles too
+    const posts = [], caps = [];
+    for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) {
+      posts.push(new THREE.CylinderGeometry(0.12, 0.12, 2.6, 8).translate(px, Y_YARD + 1.3, pz));
+      caps.push(bx(0.7, 0.5, 0.7, px, Y_YARD + 2.8, pz));
+    }
+    statics.add(mesh(merge(posts), M.pole, { cast: false }));
+    statics.add(mesh(merge(caps), mat, { cast: false }));
+    anchors.push({ text: o.label, cls: 'zone', pos: [(x0 + x1) / 2, Y_YARD + 15, (z0 + z1) / 2] });
+  }
+
+  // --- facility strips next to road N1 ---------------------------------------------------
+  const orangeLine = new THREE.MeshStandardMaterial({ color: '#ff7a1a', roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -8 });
+  const blueLine = new THREE.MeshStandardMaterial({ color: '#2f6fe0', roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -8 });
+  const blueRoof = new THREE.MeshStandardMaterial({ color: '#1d5fb8', roughness: 0.5, metalness: 0.2 });
+  const wetMat = new THREE.MeshStandardMaterial({ color: '#8d9aa3', roughness: 0.25, metalness: 0.05, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
+  const bayTrailers = [], bayTractors = [], bayCols = [], stripStackers = [];
+  const bayOutline = (x0, x1, z0, z1, list, w = 0.2) => {
+    const y = Y_YARD + 0.075;
+    list.push(bx(x1 - x0, 0.02, w, (x0 + x1) / 2, y, z0), bx(x1 - x0, 0.02, w, (x0 + x1) / 2, y, z1));
+    list.push(bx(w, 0.02, z1 - z0, x0, y, (z0 + z1) / 2), bx(w, 0.02, z1 - z0, x1, y, (z0 + z1) / 2));
+  };
+  const facility = (name, size, build) => {
+    const g = new THREE.Group();
+    g.name = name;
+    build(g);
+    statics.add(g);
+    ancillary.push({ config: { id: name }, group: g, box: new THREE.Box3().setFromObject(g), info: { name, size } });
+    g.traverse((q) => q.isMesh && (q.userData.anc = ancillary.length - 1));
+  };
+
+  for (const st of strips) {
+    if (st.kind === 'wash') {
+      const W = D.wash;
+      const bw = m(W.bayWidth), bd = m(W.bayDepth), gap = m(W.gap), barD = m(W.barDepth);
+      const fx0 = st.x0 + m(W.offsetX);
+      const zBar0 = st.z0 + 0.8, zBar1 = zBar0 + barD; // service building bar (north)
+      const zBay0 = zBar1 + 0.6, zBay1 = zBay0 + bd; // bays (container on trailer, head to the south)
+      const washX0 = fx0, washX1 = washX0 + W.washBays * bw;
+      const survX0 = washX1 + gap, survX1 = survX0 + W.surveyBays * bw;
+      // service bar: fire water tanks, pump / utility rooms, substation (as on the drawing)
+      facility('Fire water tanks & utility rooms', 'fire water tanks, pump rooms, substation', (g) => {
+        const tanks = [bx(washX1 - washX0, 3.2, barD, (washX0 + washX1) / 2, Y_YARD + 1.6, (zBar0 + zBar1) / 2), bx(24, 3.2, barD, survX0 + 7 + 12, Y_YARD + 1.6, (zBar0 + zBar1) / 2)];
+        const bands = tanks.map((t) => {
+          t.computeBoundingBox();
+          const b = t.boundingBox;
+          return bx(b.max.x - b.min.x + 0.1, 0.5, barD + 0.1, (b.min.x + b.max.x) / 2, Y_YARD + 3.0, (zBar0 + zBar1) / 2);
+        });
+        g.add(mesh(merge(tanks), M.tankSlab));
+        g.add(mesh(merge(bands), blueRoof, { cast: false }));
+        const rooms = [bx(3.2, 3.6, barD, washX1 + 1.8, Y_YARD + 1.8, (zBar0 + zBar1) / 2), bx(3.2, 3.6, barD, washX1 + 5.2, Y_YARD + 1.8, (zBar0 + zBar1) / 2), bx(8, 3.8, barD, survX0 + 32 + 4, Y_YARD + 1.9, (zBar0 + zBar1) / 2)];
+        g.add(mesh(merge(rooms), M.ancWall));
+        rooms.forEach((r) => r.computeBoundingBox());
+        g.add(mesh(merge(rooms.map((r) => { const b = r.boundingBox; return bx(b.max.x - b.min.x + 0.4, 0.25, barD + 0.4, (b.min.x + b.max.x) / 2, b.max.y + 0.12, (zBar0 + zBar1) / 2); })), blueRoof));
+        g.add(mesh(bx(Math.max(3, survX1 - (survX0 + 40.5)), 2.6, barD - 1.5, (survX0 + 40.5 + survX1) / 2 + 0.3, Y_YARD + 1.3, (zBar0 + zBar1) / 2), M.substation));
+      });
+      // washing station: canopy over the bays, wet floor with drain channels
+      facility('Container washing', `${W.washBays} bays with canopy`, (g) => {
+        g.add(mesh(flatRect(washX0, washX1, zBay0, zBay1, Y_YARD + 0.07), wetMat, { cast: false }));
+        const cols = [], lines = [], drains = [];
+        for (let i = 0; i <= W.washBays; i++) {
+          const x = washX0 + i * bw;
+          if (i % 2 === 0) for (const z of [zBay0 + 0.4, zBay1 - 0.4]) cols.push(bx(0.35, 6.2, 0.35, x, Y_YARD + 3.1, z));
+          if (i < W.washBays) drains.push(bx(0.4, 0.02, bd - 1.5, x + bw / 2, Y_YARD + 0.085, (zBay0 + zBay1) / 2));
+        }
+        for (let i = 0; i < W.washBays; i++) bayOutline(washX0 + i * bw, washX0 + (i + 1) * bw, zBay0, zBay1, lines);
+        g.add(mesh(merge(cols), blueRoof));
+        g.add(mesh(bx(washX1 - washX0 + 1.2, 0.35, bd + 1.2, (washX0 + washX1) / 2, Y_YARD + 6.35, (zBay0 + zBay1) / 2), M.trim));
+        g.add(mesh(bx(washX1 - washX0 + 1.3, 0.9, 0.25, (washX0 + washX1) / 2, Y_YARD + 6.2, zBay1 + 0.6), blueRoof, { cast: false }));
+        g.add(mesh(merge(lines), orangeLine, { cast: false }));
+        g.add(mesh(merge(drains), M.dark, { cast: false }));
+        // spray gantry pipes along each bay divider
+        const pipes = [];
+        for (let i = 1; i < W.washBays; i++) pipes.push(bx(0.12, 0.12, bd - 2, washX0 + i * bw, Y_YARD + 4.4, (zBay0 + zBay1) / 2));
+        g.add(mesh(merge(pipes), M.pole, { cast: false }));
+      });
+      // survey area: open marked bays
+      facility('Container survey area', `${W.surveyBays} inspection bays`, (g) => {
+        const lines = [];
+        for (let i = 0; i < W.surveyBays; i++) bayOutline(survX0 + i * bw, survX0 + (i + 1) * bw, zBay0, zBay1, lines);
+        g.add(mesh(merge(lines), orangeLine, { cast: false }));
+        // inspection platforms (steps) on both ends
+        const steps = [];
+        for (const x of [survX0 - 1.2, survX1 + 1.2]) steps.push(bx(1.4, 2.6, 6, x, Y_YARD + 1.3, zBay0 + 6));
+        g.add(mesh(merge(steps), M.yellowBlack));
+      });
+      // containers on trailers in the bays (some with the tractor still coupled)
+      const fill = (x0, n) => {
+        for (let i = 0; i < n; i++) {
+          if (rand() > W.occupied) continue;
+          const x = x0 + (i + 0.5) * bw;
+          bayTrailers.push(trs(x, Y_YARD, zBay0 + 0.6, -Math.PI / 2));
+          bayCols.push(colorOf());
+          if (rand() < 0.5) bayTractors.push(trs(x, Y_YARD, zBay0 + 0.6 + LT, -Math.PI / 2));
+        }
+      };
+      fill(washX0, W.washBays);
+      fill(survX0, W.surveyBays);
+      stripStackers.push(trs(washX1 + gap / 2, Y_YARD, zBay1 + 15, Math.PI / 2));
+      anchors.push({ text: 'Container washing', cls: 'zone', pos: [(washX0 + washX1) / 2, Y_YARD + 12, (zBay0 + zBay1) / 2] });
+      anchors.push({ text: 'Survey area', cls: 'zone', pos: [(survX0 + survX1) / 2, Y_YARD + 9, (zBay0 + zBay1) / 2] });
+    } else if (st.kind === 'mnr') {
+      const R = D.mnr;
+      const pitchX = (st.x1 - st.x0 - 2) / R.cols, pitchZ = m(R.rowPitch);
+      const z0 = st.z0 + 3.5;
+      facility('MNR area', '100 containers / day, maintenance and repair', (g) => {
+        const lines = [];
+        for (let r = 0; r < R.rows; r++) {
+          for (let c = 0; c < R.cols; c++) {
+            const cx = st.x0 + 1 + (c + 0.5) * pitchX, cz = z0 + (r + 0.5) * pitchZ;
+            bayOutline(cx - 3.4, cx + 3.4, cz - 1.55, cz + 1.55, lines, 0.15);
+            if (rand() < R.occupied) {
+              m20.push(trs(cx, Y_YARD, cz, Math.PI / 2));
+              c20.push(colorOf());
+            }
+          }
+        }
+        g.add(mesh(merge(lines), blueLine, { cast: false }));
+        // a few repair tool carts / welding sets between the rows
+        const carts = [];
+        for (let i = 0; i < 9; i++) {
+          const cx = st.x0 + 1 + (Math.floor(rand() * R.cols) + 0.5) * pitchX + (rand() - 0.5) * 3;
+          const cz = z0 + (Math.floor(rand() * R.rows) + 1) * pitchZ;
+          carts.push(bx(1.1, 0.9, 0.7, cx, Y_YARD + 0.45, cz));
+        }
+        g.add(mesh(merge(carts), M.ancAccent, { cast: false }));
+      });
+      stripStackers.push(trs((st.x0 + st.x1) / 2 + 10, Y_YARD, z0 + R.rows * pitchZ + 12, Math.PI / 2));
+      anchors.push({ text: 'MNR (100 containers/day)', cls: 'zone', pos: [(st.x0 + st.x1) / 2, Y_YARD + 9, z0 + (R.rows * pitchZ) / 2] });
+    }
+  }
+  if (bayTrailers.length) {
+    const tl0 = mergedParts(trailerParts());
+    for (const [k, gg] of Object.entries(tl0)) yard.add(instanced(gg, partMaterial(M, k), bayTrailers, k === 'container' ? bayCols : null));
+  }
+  if (bayTractors.length) {
+    const tr0 = mergedParts(tractorParts());
+    const cabs = bayTractors.map(() => new THREE.Color(pick(CONFIG.trucks.cabColors)));
+    for (const [k, gg] of Object.entries(tr0)) yard.add(instanced(gg, partMaterial(M, k), bayTractors, k === 'cab' ? cabs : null));
+  }
+  if (stripStackers.length) {
+    const rs0 = mergedParts(reachStackerParts());
+    for (const [k, gg] of Object.entries(rs0)) yard.add(instanced(gg, ({ body: M.reachBody, dark: M.chassis, tyre: M.tyre, glass: M.windshield })[k], stripStackers, null));
+  }
   yard.add(instanced(g20, M.container, m20, c20));
   yard.add(instanced(g40, M.container, m40, c40));
   M.T.parking.repeat.set(1, 1);

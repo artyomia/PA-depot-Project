@@ -63,6 +63,9 @@ async function main() {
   let dpr = maxDpr;
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  // Windows (ANGLE / Direct3D) prints harmless precision notes (warning X4122) for three.js shaders;
+  // keep shader log checks for development only so the presentation console stays clean.
+  renderer.debug.checkShaderErrors = import.meta.env.DEV;
   renderer.setPixelRatio(dpr);
   renderer.setSize(window.innerWidth, window.innerHeight);
   const TONE = { aces: THREE.ACESFilmicToneMapping, agx: THREE.AgXToneMapping, neutral: THREE.NeutralToneMapping };

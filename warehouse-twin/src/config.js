@@ -228,11 +228,28 @@ export const CONFIG = {
     // along `dir` ('x' = east-west, 'z' = north-south), with reach stacker aisles between them.
     yards: [
       { name: 'Laden container yard', x0: -539000, x1: -409000, z0: 38500, z1: 191750, dir: 'z' },
-      { name: 'Container yard (MNR done)', x0: -335500, x1: -206250, z0: -173500, z1: 23500, dir: 'x' },
+      // The first block row next to road N1 is replaced by a facility strip (master plan REV02):
+      // container washing + survey bays (left yard) and the MNR repair area (right yard).
+      // `outline` paints a coloured line around the next block row to mark it.
+      {
+        name: 'Container yard',
+        x0: -335500, x1: -206250, z0: -173500, z1: 23500, dir: 'x',
+        strip: 'wash',
+        outline: { label: 'Containers MNR done', color: '#1e7bff' },
+      },
       { name: 'Empty container yard', x0: -335500, x1: -206250, z0: 38500, z1: 191750, dir: 'x' },
-      { name: 'Containers awaiting MNR', x0: -183750, x1: -80000, z0: -173500, z1: 23500, dir: 'x' },
+      {
+        name: 'Container yard',
+        x0: -183750, x1: -80000, z0: -173500, z1: 23500, dir: 'x',
+        strip: 'mnr',
+        outline: { label: 'Containers awaiting MNR', color: '#ff9800' },
+      },
       { name: 'Empty container yard', x0: -183750, x1: -80000, z0: 38500, z1: 191750, dir: 'x' },
     ],
+    // Container washing + survey strip: bays for a 40 ft container on its trailer (head of the bay to the north)
+    wash: { offsetX: 28000, bayWidth: 4500, bayDepth: 17000, washBays: 8, surveyBays: 9, gap: 6000, barDepth: 6500, occupied: 0.7 },
+    // MNR (maintenance and repair, 100 containers / day): single 20 ft boxes on a loose grid, not stacked
+    mnr: { cols: 13, rows: 6, rowPitch: 4600, occupied: 0.82 },
     slots: 7, // containers side by side in one block
     slotWidth: 2900,
     cellLength: 6800, // one 20 ft cell; a 40 ft box takes two cells

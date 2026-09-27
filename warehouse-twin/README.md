@@ -231,5 +231,10 @@ construction document.
   parking: blocks 7 containers wide, stacked up to 5 high with a 20 / 40 ft mix and the colours of the reference
   photos, reach stacker aisles between the blocks. 7 reach stackers pick and place containers and 10 container
   trucks drive through the yard roads, stopping at the access control gates, whose barriers open for them.
+- **North strip of the two middle yards (REV02).** The first block row next to road N1 is replaced by the
+  container washing (8 bays with canopy) and survey (9 bays) area with its service bar (fire water tanks, pump
+  rooms, substation), and by the MNR area (100 containers / day: single 20 ft boxes on a loose 13 x 6 grid).
+  The next block row is outlined in blue (containers MNR done) and orange (containers awaiting MNR).
+  Sizes are in `config.depot.wash` and `config.depot.mnr`; each yard's `strip` and `outline` switch them on.
 - **Access control gates** (5 lanes with booths, barriers and a branded canopy) at road D1, road N1 and
   road N3, and the 3-floor **office building** with its orange entrance portal next to the N3 gate.
