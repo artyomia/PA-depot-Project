@@ -277,14 +277,19 @@ export const CONFIG = {
   // ---------------------------------------------------------------------------
   operations: {
     // Container trucks waiting for their turn: bays east of the EV charging row, nose to the lane
-    truckWaiting: { x0: -384500, bayDepth: 18000, z0: -166000, z1: 16000, bayWidth: 4000, occupied: 0.65 },
+    // next to the road edge, leaving room for tractors backing out of the EV charging bays
+    truckWaiting: { x0: -370500, bayDepth: 18000, z0: -166000, z1: 16000, bayWidth: 4000, occupied: 0.65 },
+    // Forklifts unloading containers at these west dock doors (u of the door centre, mm).
+    // gap = distance from the dock platform edge to the container doors.
+    dockForklifts: { doorsU: [63250, 111250, 159250, 219250, 267250], gap: 3600 },
     // Container stuffing (Phuoc An Depot service) on the paved area east of the laden yard.
-    // Bays along both sides of a work apron: a 20 ft container with open doors and a cargo truck parked
-    // alongside it (parallel). Bays work by conveyor (truck to container), by hand, or wait.
+    // Along both outer edges: a tight row of 20 ft containers with the doors open towards the apron, and
+    // in front of it a parking lane where cargo trucks stand parallel to the container row. Trucks unload
+    // by conveyor (truck to container door) or by hand; some are parked waiting.
     stuffing: {
       x0: -404000, x1: -354000, z0: 44000, z1: 186000,
-      bayPitch: 7600,
-      mix: { conveyor: 9, hand: 11, parked: 8 }, // remaining bays: container only, waiting for a truck
+      containerPitch: 2900, perGroup: 8, groupGap: 4400, trucksPerGroup: 2, workGap: 2600,
+      mix: { conveyor: 6, hand: 6, parked: 5 }, // remaining truck bays are empty
       movingCargoTrucks: 4, // arriving / leaving through the apron
       movingContainerTrucks: 2, // taking stuffed containers out
       supervisors: 4,

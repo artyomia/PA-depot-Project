@@ -262,12 +262,15 @@ construction document.
   rooms, substation), and by the MNR area (100 containers / day: single 20 ft boxes on a loose 13 x 6 grid).
   The next block row is outlined in blue (containers MNR done) and orange (containers awaiting MNR).
   Sizes are in `config.depot.wash` and `config.depot.mnr`; each yard's `strip` and `outline` switch them on.
-- **Container truck waiting area** east of the EV charging row: 45 bays with trucks nose to the lane.
-- **Container stuffing area** (Phuoc An Depot service) on the paved area east of the laden yard: 36 bays of
-  20 ft containers with open doors facing a work apron. Cargo trucks park parallel alongside the containers;
-  some bays load by conveyor (belt from the truck tail into the container), some by hand (workers carrying
-  bags), some trucks are parked waiting, and cargo / container trucks drive in and out through the apron
-  with short stops. Mix and counts in `config.operations.stuffing` (module `src/operations.js`).
+- **Container stuffing area** (Phuoc An Depot service) on the paved area east of the laden yard: along both
+  outer edges a tight row of 20 ft containers (80 in total) with the doors open towards the apron, and in
+  front of it a lane where cargo trucks park parallel to the container row. Some trucks unload by conveyor
+  (truck side to container door), some by hand (workers carrying bags), some are parked waiting, and cargo /
+  container trucks drive in and out through the middle of the apron. Settings in `config.operations.stuffing`.
+- **Forklifts at the west dock doors**: at 5 doors a container stands in front of the dock platform and a
+  forklift takes pallets out of it and sets them on the platform (`config.operations.dockForklifts`).
+- **Container truck waiting area** sits next to the road edge, leaving space for tractors to back out of the
+  EV charging bays.
 - **Reach stackers** follow the reference machine: red chassis, raised cab, twin front wheels, dark
   telescopic boom from the rear pivot tower, lift cylinder and a spreader with yellow twist-lock corners.
 - **Access control gates** (5 lanes with booths, barriers and a branded canopy) at road D1, road N1 and

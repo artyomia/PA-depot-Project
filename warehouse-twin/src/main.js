@@ -11,7 +11,7 @@ import { buildDocks, doorList } from './docks.js';
 import { buildRacks } from './racks.js';
 import { buildTrucks } from './trucks.js';
 import { buildDepot } from './depot.js';
-import { buildOperations } from './operations.js';
+import { buildOperations, buildDockForklifts } from './operations.js';
 import { createUI, warehouseInfoHTML } from './ui.js';
 import { m, BUILD_L, BUILD_W, clamp, lerp, easeInOut } from './util.js';
 import { PerfController, detectProfile } from './perf.js';
@@ -141,6 +141,8 @@ async function main() {
   const ops = buildOperations(M, site.ancillary);
   scene.add(ops.statics);
   trucks.group.add(ops.yard);
+  const forklifts = buildDockForklifts(M, docks.doors);
+  trucks.group.add(forklifts.group);
   site.anchors.push(...ops.anchors);
 
   // --- Lights, sky, environment -------------------------------------------------------------
@@ -664,7 +666,7 @@ async function main() {
   progress(1, 'Ready');
 
   // expose for debugging / automated screenshots
-  window.twin = { scene, camera, controls, renderer, goTo, setXray, setDusk, setLayer, select, trucks, racks, building, site, depot, ops, perf, config: CONFIG, LIGHT, applyLight, hemi, sun, M };
+  window.twin = { scene, camera, controls, renderer, goTo, setXray, setDusk, setLayer, select, trucks, racks, building, site, depot, ops, forklifts, perf, config: CONFIG, LIGHT, applyLight, hemi, sun, M };
 
   let last = performance.now();
   let occT = 1, viewShift = 0, viewShiftTarget = 0, insetT = 1, hoverT = 1;
@@ -685,6 +687,7 @@ async function main() {
       trucks.update(dt);
       depot.update(dt);
       ops.update(dt);
+      forklifts.update(dt);
     }
     sky.material.uniforms.time.value += dt;
 
