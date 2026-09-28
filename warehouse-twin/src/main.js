@@ -135,6 +135,7 @@ async function main() {
   progress(0.86, 'Container depot');
   await nextFrame();
   const depot = buildDepot(M, site.ancillary);
+  if (depot.officeGlass) building.officeGlass.push(depot.officeGlass); // office windows light up at dusk
   scene.add(depot.statics);
   trucks.group.add(depot.yard); // containers and yard vehicles follow the Trucks & containers layer
   site.anchors.push(...depot.anchors);
@@ -625,6 +626,7 @@ async function main() {
     else if (k === 'd') setDusk(!duskTarget);
     else if (k === 'l') setLayer('labels', !labelGroup.visible);
     else if (k === 'c') ui.toggleControls();
+    else if (k === 'n') ui.toggleNav();
     else if (k === ' ') {
       paused = !paused;
       ui.setPaused(paused);

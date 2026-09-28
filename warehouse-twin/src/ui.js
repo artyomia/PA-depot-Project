@@ -2,7 +2,7 @@ import { CONFIG } from './config.js';
 import { logoSVG } from './logo.js';
 
 /**
- * DOM overlay: brand, view presets, display + layer toggles, key figures, legend,
+ * DOM overlay: brand, view presets, display + layer toggles, key figures,
  * info card, hover label element, compass and loader. Pure DOM, no framework.
  */
 
@@ -99,36 +99,27 @@ export function createUI(root, handlers, figures) {
       <button class="icon-btn close" data-act="close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       <div class="info-body"></div>
     </div>
-    <div class="panel legend" id="legend">
-      <h3>Legend</h3>
-      <ul>
-        <li><i style="background:#e2622b"></i>Warehouse F1</li>
-        <li><i style="background:#1d5fb8"></i>Warehouse F2</li>
-        <li><i style="background:#f1f0ec;border:1px solid #c9ccd1"></i>Ancillary</li>
-        <li><i style="background:#bdbbb4"></i>Paved yard</li>
-        <li><i style="background:#50545a"></i>Roads</li>
-        <li><i style="background:#6f9a4f"></i>Green areas</li>
-        <li><i class="dash"></i>Site boundary</li>
-        <li><i class="ring" style="border-color:#1e7bff"></i>MNR done</li>
-        <li><i class="ring" style="border-color:#ff9800"></i>Awaiting MNR</li>
-        <li><i style="background:linear-gradient(90deg,#2d63b5 50%,#ec7a22 50%)"></i>Pallet racks</li>
-      </ul>
-    </div>
     </div>
 
 
     <div class="nav" role="group" aria-label="Map navigation">
-      <button class="nb" data-act="home" title="Fit the whole site" aria-label="Fit the whole site">${ICONS.site}</button>
-      <button class="nb" data-pan="0,1" title="Move up (arrow key)" aria-label="Move map up"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
-      <button class="nb" data-zoom="1" title="Zoom in (+)" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-      <button class="nb" data-pan="-1,0" title="Move left (arrow key)" aria-label="Move map left"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="nav-items">
+        <button class="nb" data-act="home" title="Fit the whole site" aria-label="Fit the whole site">${ICONS.site}</button>
+        <span class="nav-sep"></span>
+        <button class="nb" data-pan="-1,0" title="Move left (arrow key)" aria-label="Move map left"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <button class="nb" data-pan="0,1" title="Move up (arrow key)" aria-label="Move map up"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+        <button class="nb" data-pan="0,-1" title="Move down (arrow key)" aria-label="Move map down"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="nb" data-pan="1,0" title="Move right (arrow key)" aria-label="Move map right"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        <span class="nav-sep"></span>
+        <button class="nb" data-zoom="1" title="Zoom in (+)" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="nb" data-zoom="-1" title="Zoom out (-)" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <span class="nav-sep"></span>
+        <button class="nb" data-act="mapmode" title="Map mode: drag to move the map (M)" aria-label="Map mode">${ICONS.hand}</button>
+      </div>
       <div class="compass" title="North">
         <div class="needle"><span>N</span></div>
       </div>
-      <button class="nb" data-pan="1,0" title="Move right (arrow key)" aria-label="Move map right"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
-      <button class="nb" data-act="mapmode" title="Map mode: drag to move the map (M)" aria-label="Map mode">${ICONS.hand}</button>
-      <button class="nb" data-pan="0,-1" title="Move down (arrow key)" aria-label="Move map down"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-      <button class="nb" data-zoom="-1" title="Zoom out (-)" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      <button class="nb nav-toggle" data-act="navtoggle" title="Show / hide the navigation buttons (N)" aria-label="Hide navigation buttons" aria-expanded="true"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
     </div>
     <div class="hint">Drag to orbit &nbsp;|&nbsp; right-drag, two fingers or the arrows to move the map &nbsp;|&nbsp; scroll or pinch to zoom &nbsp;|&nbsp; click F1 or F2 for details</div>
   `;
@@ -164,7 +155,33 @@ export function createUI(root, handlers, figures) {
     /* storage unavailable */
   }
   setCollapsed(small() || stored === 'collapsed', false);
-  if (small()) figs.classList.add('collapsed');
+  figs.classList.add('collapsed'); // key figures start collapsed; the chevron opens them
+
+  // navigation bar: collapsible (remembered per browser)
+  const nav = $('.nav');
+  const navBtn = $('[data-act="navtoggle"]');
+  const setNav = (open, remember = true) => {
+    nav.classList.toggle('closed', !open);
+    navBtn.setAttribute('aria-expanded', String(open));
+    navBtn.setAttribute('aria-label', open ? 'Hide navigation buttons' : 'Show navigation buttons');
+    if (remember) {
+      try {
+        localStorage.setItem('pa-twin-nav', open ? 'open' : 'closed');
+      } catch (e) {
+        /* storage unavailable */
+      }
+    }
+  };
+  {
+    let st = null;
+    try {
+      st = localStorage.getItem('pa-twin-nav');
+    } catch (e) {
+      /* storage unavailable */
+    }
+    setNav(st !== 'closed', false);
+  }
+  navBtn.addEventListener('click', () => setNav(nav.classList.contains('closed')));
 
   $$('[data-preset]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -216,6 +233,9 @@ export function createUI(root, handlers, figures) {
       const left = controls.classList.contains('collapsed') ? 0 : r(controls).right;
       const right = figs.classList.contains('collapsed') ? 0 : window.innerWidth - r(figs).left;
       return { left, right };
+    },
+    toggleNav() {
+      navBtn.click();
     },
     toggleControls() {
       setCollapsed(!controls.classList.contains('collapsed'));

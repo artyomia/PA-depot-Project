@@ -65,12 +65,14 @@ monitored and the resolution is lowered further if needed.
 | Ancillary building name and size | Hover                                         | Tap                      |
 | Labels on / off                  | Switch or `L`                                 | Switch                   |
 | Collapse / expand the left panel | Chevron in the title bar or `C`               | Chevron                  |
+| Show / hide the navigation bar   | Chevron at its end or `N`                     | Chevron                  |
 | Pause / play the truck loop      | Button or `Space`                             | Button                   |
 
 Camera presets: **Aerial**, **Front entrance** (F1 office and portal frame), **Dock side** (east docks),
 **Inside F1** (cross aisle), **Inside F2** (dock staging aisle), **Container depot** (keys `6`) and **Whole site** (`7`).
 
-The navigation pad around the compass (bottom right) has arrows, zoom and a fit-the-whole-site button. The view
+The navigation bar (bottom centre) has fit-the-whole-site, arrows, zoom and map mode buttons plus the compass;
+the chevron (or key `N`) folds it down to just the compass. The Key figures panel starts collapsed. The view
 centre shifts automatically into the space left free by the side panels, and the camera target is kept inside
 `navBounds` (config) so the map cannot be dragged away. Map mode is remembered per browser.
 
@@ -274,4 +276,7 @@ construction document.
 - **Reach stackers** follow the reference machine: red chassis, raised cab, twin front wheels, dark
   telescopic boom from the rear pivot tower, lift cylinder and a spreader with yellow twist-lock corners.
 - **Access control gates** (5 lanes with booths, barriers and a branded canopy) at road D1, road N1 and
-  road N3, and the 3-floor **office building** with its orange entrance portal next to the N3 gate.
+  road N3, and the **office building** next to the N3 gate, after the design perspectives: white 3-storey block
+  with a light blue hip roof, blue glass window bays with light blue spandrels and salmon panels, a tall orange
+  entrance portal between blue piers with the brand sign, a smaller orange portal on the east end, a lower
+  rear wing, fenced compound with guard house, gate sign and flag poles.

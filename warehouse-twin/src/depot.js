@@ -399,65 +399,200 @@ export function buildDepot(M, ancillary) {
   }
 
   // ===========================================================================
-  // 3. Office building (3 floors, entrance tower with the brand portal)
+  // 3. Office building, after the design perspectives: white 3-storey block with a light blue hip roof,
+  //    window bays with blue glass, light blue spandrels and salmon panels, a tall orange entrance portal
+  //    flanked by blue piers, a smaller orange portal on the east end and a lower rear wing.
   // ===========================================================================
+  let officeGlassMat = null;
   {
     const o = office;
     const x0 = m(o.x0), x1 = m(o.x1), z0 = m(o.z0), z1 = m(o.z1);
     const cp = o.compound;
     const g = new THREE.Group();
     g.name = 'office';
-    const fh = 4.2, H = o.floors * fh + 0.6;
-    const zMain0 = z1 - 18; // main block 18 m deep, facing N3 (south, +z)
-    const xc = (x0 + x1) / 2;
-    // lawn and forecourt
-    const lawn = new THREE.Mesh(flatRect(m(cp.x0), m(cp.x1), m(cp.z0), m(cp.z1), Y_YARD + 0.08), M.grass);
+    const FH = 4.2, NF = o.floors, PL = 0.6; // floor height, floors, plinth
+    const HF = NF * FH, H = PL + HF; // top of the facade
+    const CORN = 1.3; // white cornice band
+    const D = 17; // main block depth
+    const zb = z1 - D; // back of the main block
+    const xc = (x0 + x1) / 2, W = x1 - x0;
+    const Y0 = Y_YARD;
+
+    // --- lawn, forecourt, driveway ---
+    const lawn = new THREE.Mesh(flatRect(m(cp.x0), m(cp.x1), m(cp.z0), m(cp.z1), Y0 + 0.08), M.grass);
     lawn.receiveShadow = true;
     g.add(lawn);
     const fore = M.sidewalk.clone();
     fore.polygonOffset = true;
     fore.polygonOffsetFactor = -2;
     fore.polygonOffsetUnits = -6;
-    g.add(mesh(flatRect(xc - 16, xc + 16, z1, m(cp.z1), Y_YARD + 0.1), fore, { cast: false }));
-    g.add(mesh(flatRect(m(cp.x1) - 10, m(cp.x1), m(cp.z0), m(cp.z1), Y_YARD + 0.1), fore, { cast: false }));
-    // main block and rear wing
-    const walls = [bx(x1 - x0, H, z1 - zMain0, xc, Y_YARD + H / 2, (zMain0 + z1) / 2), bx(20, 2 * fh + 0.6, zMain0 - z0, x1 - 11, Y_YARD + fh + 0.3, (z0 + zMain0) / 2)];
-    const glassBands = [], fins = [], blueTrim = [], orange = [];
-    for (let f = 0; f < o.floors; f++) {
-      const y = Y_YARD + f * fh + 1.0 + 1.3;
-      for (const zz of [z1 + 0.05, zMain0 - 0.05]) glassBands.push(bx(x1 - x0 - 1.2, 2.6, 0.12, xc, y, zz));
-      for (const xx of [x0 - 0.05, x1 + 0.05]) glassBands.push(bx(0.12, 2.6, z1 - zMain0 - 1.2, xx, y, (zMain0 + z1) / 2));
+    g.add(mesh(flatRect(xc - 13, xc + 13, z1, m(cp.z1), Y0 + 0.1), fore, { cast: false }));
+    g.add(mesh(flatRect(m(cp.x0), m(cp.x1), m(cp.z1) - 7, m(cp.z1) - 1, Y0 + 0.1), fore, { cast: false }));
+    g.add(mesh(flatRect(m(cp.x1) - 9, m(cp.x1) - 1, m(cp.z0) + 1, m(cp.z1) - 1, Y0 + 0.1), fore, { cast: false }));
+
+    // --- facade texture: one tile = two window bays (7.2 m) x three floors (12.6 m) ---
+    const facadeTex = (emissive) =>
+      canvasTexture(512, 896, (x, w, h) => {
+        const ppm = w / 7.2;
+        x.fillStyle = emissive ? '#000' : '#f4f5f3';
+        x.fillRect(0, 0, w, h);
+        for (let bay = 0; bay < 2; bay++) {
+          const bx0 = bay * 3.6 * ppm + 0.55 * ppm, bw = 2.5 * ppm; // opening between white pilasters
+          for (let f = 0; f < 3; f++) {
+            const top = h - (f + 1) * FH * ppm, fh = FH * ppm;
+            // light blue spandrel at the bottom of each floor
+            if (!emissive) {
+              x.fillStyle = '#8ec3ee';
+              x.fillRect(bx0, top + fh - 0.9 * ppm, bw, 0.9 * ppm);
+            }
+            // glass
+            const gy = top + 0.35 * ppm, gh = fh - 1.25 * ppm;
+            if (emissive) {
+              x.fillStyle = '#ffd8a0';
+              x.fillRect(bx0, gy, bw, gh);
+            } else {
+              const gr = x.createLinearGradient(0, gy, 0, gy + gh);
+              gr.addColorStop(0, '#6f9fd6');
+              gr.addColorStop(1, '#3f6fae');
+              x.fillStyle = gr;
+              x.fillRect(bx0, gy, bw, gh);
+            }
+            // salmon panel on part of the opening (second bay, lower two floors), as on the elevation
+            if (bay === 1 && f < 2) {
+              x.fillStyle = emissive ? '#000' : '#f2a48a';
+              x.fillRect(bx0, gy, bw * 0.42, gh);
+            }
+            if (!emissive) {
+              x.fillStyle = '#e9eef3';
+              x.fillRect(bx0 + bw * 0.5 - 3, gy, 6, gh); // mullion
+              x.fillRect(bx0, gy + gh * 0.62, bw, 5); // transom
+            }
+          }
+        }
+      });
+    const tex = facadeTex(false), texE = facadeTex(true);
+    for (const t of [tex, texE]) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    const facadeMat = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: texE, emissive: '#ffffff', emissiveIntensity: 0, roughness: 0.45, metalness: 0.1 });
+    officeGlassMat = facadeMat;
+    // facade plane with UVs in tiles; floors = number of storeys shown
+    const facade = (len, floors, cx, cz, ry, yBase) => {
+      const p = new THREE.PlaneGeometry(len, floors * FH);
+      const uv = p.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (len / 7.2), uv.getY(i) * (floors / 3));
+      p.rotateY(ry);
+      p.translate(cx, yBase + (floors * FH) / 2, cz);
+      return p;
+    };
+
+    // --- main block ---
+    const white = [];
+    white.push(bx(W, H, D, xc, Y0 + H / 2, (zb + z1) / 2));
+    white.push(bx(W + 0.8, CORN, D + 0.8, xc, Y0 + H + CORN / 2, (zb + z1) / 2)); // cornice
+    white.push(bx(W + 0.3, PL, D + 0.3, xc, Y0 + PL / 2, (zb + z1) / 2)); // plinth
+    const fac = [];
+    const e = 0.03;
+    fac.push(facade(W, NF, xc, z1 + e, 0, Y0 + PL)); // front (south)
+    fac.push(facade(W, NF, xc, zb - e, Math.PI, Y0 + PL)); // back
+    fac.push(facade(D, NF, x1 + e, (zb + z1) / 2, Math.PI / 2, Y0 + PL)); // east end
+    fac.push(facade(D, NF, x0 - e, (zb + z1) / 2, -Math.PI / 2, Y0 + PL)); // west end
+    // --- rear wing (2 storeys) at the back, east side ---
+    const rw0 = x1 - 22, rw1 = x1 - 2, rz0 = z0, rz1 = zb;
+    const RH = PL + 2 * FH;
+    white.push(bx(rw1 - rw0, RH, rz1 - rz0, (rw0 + rw1) / 2, Y0 + RH / 2, (rz0 + rz1) / 2));
+    white.push(bx(rw1 - rw0 + 0.6, 1.0, rz1 - rz0 + 0.6, (rw0 + rw1) / 2, Y0 + RH + 0.5, (rz0 + rz1) / 2));
+    fac.push(facade(rw1 - rw0, 2, (rw0 + rw1) / 2, rz0 - e, Math.PI, Y0 + PL));
+    fac.push(facade(rz1 - rz0, 2, rw1 + e, (rz0 + rz1) / 2, Math.PI / 2, Y0 + PL));
+    fac.push(facade(rz1 - rz0, 2, rw0 - e, (rz0 + rz1) / 2, -Math.PI / 2, Y0 + PL));
+    g.add(mesh(merge(white), M.ancWall));
+    g.add(mesh(merge(fac), facadeMat, { cast: false }));
+
+    // --- hip roofs (light blue) ---
+    const roofMat = new THREE.MeshStandardMaterial({ color: '#4d9be6', roughness: 0.55, metalness: 0.2 });
+    g.add(mesh(hipRoof(W + 0.6, D + 0.6, 3.6, xc, Y0 + H + CORN, (zb + z1) / 2), roofMat));
+    g.add(mesh(hipRoof(rw1 - rw0 + 0.4, rz1 - rz0 + 0.4, 2.6, (rw0 + rw1) / 2, Y0 + RH + 1.0, (rz0 + rz1) / 2), roofMat));
+    // roof hatch
+    g.add(mesh(bx(1.6, 0.6, 1.6, xc - 8, Y0 + H + CORN + 1.6, (zb + z1) / 2 + 3), M.ancWall, { cast: false }));
+
+    // --- main entrance: orange portal frame, blue piers, glass curtain wall, sign, canopy, steps ---
+    const orangeM = new THREE.MeshStandardMaterial({ color: '#f0631e', roughness: 0.5, metalness: 0.1 });
+    const orangeM2 = new THREE.MeshStandardMaterial({ color: '#d9531a', roughness: 0.5, metalness: 0.1 });
+    const blueM = new THREE.MeshStandardMaterial({ color: '#1f4fb8', roughness: 0.45, metalness: 0.15 });
+    const TW = 11, TH = H + CORN + 3.2, TD = 3.2; // portal width, height, projection
+    const zf = z1 + TD / 2;
+    const or = [], or2 = [], bl = [], gl = [];
+    or.push(bx(2.0, TH, TD, xc - TW / 2 + 1.0, Y0 + TH / 2, zf)); // piers
+    or.push(bx(2.0, TH, TD, xc + TW / 2 - 1.0, Y0 + TH / 2, zf));
+    or.push(bx(TW, 3.0, TD, xc, Y0 + TH - 1.5, zf)); // head
+    // nested inner frame, slightly recessed
+    or2.push(bx(0.7, TH - 3.8, 0.6, xc - TW / 2 + 2.35, Y0 + (TH - 3.8) / 2, z1 + TD - 0.5));
+    or2.push(bx(0.7, TH - 3.8, 0.6, xc + TW / 2 - 2.35, Y0 + (TH - 3.8) / 2, z1 + TD - 0.5));
+    or2.push(bx(TW - 4, 0.7, 0.6, xc, Y0 + TH - 3.35, z1 + TD - 0.5));
+    // blue piers either side of the portal, from ground to above the cornice
+    const BH = H + CORN + 1.2;
+    for (const s of [-1, 1]) bl.push(bx(2.4, BH, 2.2, xc + s * (TW / 2 + 1.2), Y0 + BH / 2, z1 + 1.1));
+    // glass curtain wall inside the portal and on the blue piers' inner faces
+    gl.push(bx(TW - 4.7, TH - 4.2, 0.2, xc, Y0 + PL + (TH - 4.2) / 2, z1 + 1.2));
+    g.add(mesh(merge(or), orangeM));
+    g.add(mesh(merge(or2), orangeM2));
+    g.add(mesh(merge(bl), blueM));
+    g.add(mesh(merge(gl), M.window, { cast: false }));
+    // mullions on the curtain wall
+    const mull = [];
+    for (let k = 1; k < 5; k++) mull.push(bx(0.12, TH - 4.2, 0.14, xc - (TW - 4.7) / 2 + (k * (TW - 4.7)) / 5, Y0 + PL + (TH - 4.2) / 2, z1 + 1.35));
+    for (let f = 1; f <= NF; f++) mull.push(bx(TW - 4.7, 0.18, 0.14, xc, Y0 + PL + f * FH - 0.1, z1 + 1.35));
+    g.add(mesh(merge(mull), M.trim, { cast: false }));
+    // brand sign on a white band across the portal (upper third)
+    g.add(mesh(bx(TW - 2.2, 2.3, 0.4, xc, Y0 + PL + 2 * FH + 1.3, z1 + TD + 0.05), M.trim));
+    const sign = new THREE.PlaneGeometry(TW - 2.8, (TW - 2.8) * 0.27);
+    sign.translate(xc, Y0 + PL + 2 * FH + 1.3, z1 + TD + 0.27);
+    g.add(mesh(sign, gateLogoMat, { cast: false }));
+    // entrance canopy and steps
+    g.add(mesh(bx(TW - 3.4, 0.35, 3.2, xc, Y0 + 4.4, z1 + TD + 1.0), M.trim));
+    const steps = [];
+    for (let k = 0; k < 3; k++) steps.push(bx(TW + 6 - k * 1.2, 0.2 * (k + 1), 1.2, xc, Y0 + 0.1 * (k + 1), z1 + TD + 4.1 - k * 1.1));
+    g.add(mesh(merge(steps), M.curb));
+
+    // --- east end entrance: smaller orange frame with blue side piers ---
+    {
+      const ez = (zb + z1) / 2 + 1.5, ew = 6.5, eh = PL + 2 * FH + 1.5, ed = 1.8;
+      const o2 = [bx(ed, eh, 1.3, x1 + ed / 2, Y0 + eh / 2, ez - ew / 2 + 0.65), bx(ed, eh, 1.3, x1 + ed / 2, Y0 + eh / 2, ez + ew / 2 - 0.65), bx(ed, 1.5, ew, x1 + ed / 2, Y0 + eh - 0.75, ez)];
+      g.add(mesh(merge(o2), orangeM));
+      g.add(mesh(merge([bx(1.2, eh - 1, 1.0, x1 + 0.6, Y0 + (eh - 1) / 2, ez - ew / 2 - 0.6), bx(1.2, eh - 1, 1.0, x1 + 0.6, Y0 + (eh - 1) / 2, ez + ew / 2 + 0.6)]), blueM));
+      g.add(mesh(bx(0.15, eh - 2.2, ew - 2.6, x1 + 0.4, Y0 + (eh - 2.2) / 2, ez), M.window, { cast: false }));
+      g.add(mesh(bx(2.6, 0.3, ew - 1.8, x1 + 1.5, Y0 + 3.8, ez), M.trim));
     }
-    for (let xx = x0 + 3; xx < x1 - 1; xx += 3) fins.push(bx(0.3, H - 1, 0.35, xx, Y_YARD + H / 2, z1 + 0.15));
-    blueTrim.push(bx(x1 - x0 + 0.6, 0.9, z1 - zMain0 + 0.6, xc, Y_YARD + H + 0.15, (zMain0 + z1) / 2));
-    blueTrim.push(bx(x1 - x0 + 0.4, 0.5, 0.4, xc, Y_YARD + 0.25, z1 + 0.1));
-    // entrance tower
-    const tw = 12, tH = H + 3.2;
-    orange.push(bx(1.2, tH, 4.2, xc - tw / 2, Y_YARD + tH / 2, z1 + 1.5));
-    orange.push(bx(1.2, tH, 4.2, xc + tw / 2, Y_YARD + tH / 2, z1 + 1.5));
-    orange.push(bx(tw + 1.2, 1.4, 4.2, xc, Y_YARD + tH - 0.7, z1 + 1.5));
-    blueTrim.push(bx(tw - 1.2, 3.0, 0.6, xc, Y_YARD + tH - 3.0, z1 + 3.2));
-    const towerGlass = bx(tw - 1.2, tH - 4.6, 0.2, xc, Y_YARD + (tH - 4.6) / 2, z1 + 2.2);
-    walls.push(bx(tw, 0.35, 5.5, xc, Y_YARD + 4.6, z1 + 3.0)); // entrance canopy slab
-    g.add(mesh(merge(walls), M.ancWall));
-    g.add(mesh(merge([...glassBands, towerGlass]), M.window, { cast: false }));
-    g.add(mesh(merge(fins), M.ancWall, { cast: false }));
-    g.add(mesh(merge(blueTrim), blue));
-    g.add(mesh(merge(orange), M.ancAccent));
-    const lp = new THREE.PlaneGeometry(tw - 2.4, (tw - 2.4) * 0.27);
-    lp.translate(xc, Y_YARD + tH - 3.0, z1 + 3.52);
-    g.add(mesh(lp, gateLogoMat, { cast: false }));
-    // flag poles
+
+    // --- compound fence, guard house, gate sign, flag poles ---
+    const fz = m(cp.z1), fx0 = m(cp.x0), fx1 = m(cp.x1), fz0 = m(cp.z0);
+    const fence = [];
+    const run = (ax, az, bx2, bz) => {
+      const len = Math.hypot(bx2 - ax, bz - az);
+      const p = new THREE.PlaneGeometry(len, 1.8);
+      p.rotateY(Math.atan2(-(bz - az), bx2 - ax));
+      p.translate((ax + bx2) / 2, Y0 + 0.9, (az + bz) / 2);
+      fence.push(p);
+    };
+    run(fx0, fz, xc - 16, fz);
+    run(xc + 16, fz, fx1 - 10, fz);
+    run(fx0, fz0, fx1, fz0);
+    run(fx0, fz0, fx0, fz);
+    run(fx1, fz0, fx1, fz - 10);
+    g.add(mesh(merge(fence.map((q) => worldUV(q))), M.fence, { cast: false }));
+    g.add(mesh(bx(4.2, 3.0, 3.6, fx0 + 4, Y0 + 1.5, fz - 4), M.ancWall));
+    g.add(mesh(bx(5.2, 0.35, 4.6, fx0 + 4, Y0 + 3.2, fz - 4), blueM));
+    g.add(mesh(bx(0.9, 1.3, 3.2, fx0 + 1.9, Y0 + 0.65, fz - 4), blueM, { cast: false }));
+    const gs = new THREE.PlaneGeometry(4.2, 1.14);
+    gs.translate(xc + 19, Y0 + 1.4, fz + 0.16);
+    g.add(mesh(bx(4.6, 1.5, 0.3, xc + 19, Y0 + 1.1, fz), M.dark, { cast: false }));
+    g.add(mesh(gs, gateLogoMat, { cast: false }));
     const poles = [];
-    for (const dx of [-4, 0, 4]) poles.push(new THREE.CylinderGeometry(0.08, 0.1, 12, 6).translate(xc + dx, Y_YARD + 6, m(cp.z1) - 5));
+    for (const dx of [-3, 0, 3]) poles.push(new THREE.CylinderGeometry(0.08, 0.1, 12, 6).translate(xc - 17 + dx, Y0 + 6, fz - 5));
     g.add(mesh(merge(poles), M.pole, { cast: false }));
-    // guard house at the compound corner
-    g.add(mesh(bx(4, 3.2, 4, m(cp.x0) + 3, Y_YARD + 1.6, m(cp.z1) - 3), M.ancWall));
-    g.add(mesh(bx(4.6, 0.3, 4.6, m(cp.x0) + 3, Y_YARD + 3.35, m(cp.z1) - 3), blue));
+
     statics.add(g);
-    ancillary.push({ config: { id: 'office' }, group: g, box: new THREE.Box3().setFromObject(g), info: { name: 'Office building', size: `${o.floors} floors, about ${Math.round(x1 - x0)} x ${Math.round(z1 - z0)} m` } });
+    ancillary.push({ config: { id: 'office' }, group: g, box: new THREE.Box3().setFromObject(g), info: { name: 'Office building', size: `${NF} floors, about ${Math.round(W)} x ${Math.round(D)} m + rear wing` } });
     g.traverse((q) => q.isMesh && (q.userData.anc = ancillary.length - 1));
-    anchors.push({ text: 'Office building', cls: 'zone', pos: [xc, Y_YARD + 20, (z0 + z1) / 2] });
+    anchors.push({ text: 'Office building', cls: 'zone', pos: [xc, Y0 + 22, (z0 + z1) / 2] });
   }
 
   // ===========================================================================
@@ -644,7 +779,7 @@ export function buildDepot(M, ancillary) {
   }
   update(0);
 
-  return { statics, yard, anchors, update, stackers, stats: { containers: m20.length + m40.length, stackers: nRS, trucks: nT } };
+  return { statics, yard, anchors, update, stackers, officeGlass: officeGlassMat, stats: { containers: m20.length + m40.length, stackers: nRS, trucks: nT } };
 }
 
 /** Offset an axis-aligned polyline to the right of the travel direction (right-hand traffic). */
@@ -668,4 +803,45 @@ function offsetRight(pts, d) {
     }
   }
   return out;
+}
+
+function canvasTexture(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+/** Hip roof over a w x d rectangle (w along x), eaves at y0, ridge h higher; outward-facing triangles. */
+function hipRoof(w, d, h, cx, y0, cz) {
+  const hw = w / 2, hd = d / 2;
+  const r = Math.max(0, hw - hd); // half ridge length (ridge along the longer axis)
+  const alongX = w >= d;
+  const P = (x, y, z) => new THREE.Vector3(cx + x, y0 + y, cz + z);
+  const A = P(-hw, 0, -hd), B = P(hw, 0, -hd), C = P(hw, 0, hd), Dd = P(-hw, 0, hd);
+  const R1 = alongX ? P(-r, h, 0) : P(0, h, -Math.max(0, hd - hw));
+  const R2 = alongX ? P(r, h, 0) : P(0, h, Math.max(0, hd - hw));
+  const tris = [
+    [A, B, R2], [A, R2, R1], // north
+    [C, Dd, R1], [C, R1, R2], // south
+    [B, C, R2], // east
+    [Dd, A, R1], // west
+  ];
+  const centre = new THREE.Vector3(cx, y0, cz);
+  const pos = [];
+  for (const [a, b, c] of tris) {
+    const n = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a));
+    const mid = new THREE.Vector3().add(a).add(b).add(c).divideScalar(3).sub(centre);
+    const ok = n.dot(mid) > 0;
+    for (const p of ok ? [a, b, c] : [a, c, b]) pos.push(p.x, p.y, p.z);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
+  g.computeVertexNormals();
+  return g;
 }
