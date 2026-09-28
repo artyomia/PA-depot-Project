@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { m, Y_YARD, merge, mesh, instanced, trs, rng, flatRect, clamp } from './util.js';
-import { LT, bx, wheel, trailerParts, tractorParts, mergedParts, partMaterial } from './trucks.js';
+import { LT, LC, LTOT, bx, wheel, trailerParts, tractorParts, mergedParts, partMaterial, fillet, Path } from './trucks.js';
 
 /**
  * Yard operations in the west depot:
  *   - container truck waiting area (east of the EV charging row)
- *   - rice container stuffing: open 20 ft containers, conveyors, bag piles on tarps,
- *     covered cargo trucks unloading straight into containers and workers carrying bags
+ *   - container stuffing: open 20 ft containers with cargo trucks parked alongside, conveyors from
+ *     the trucks into the containers, workers carrying bags, trucks arriving / leaving through the apron
  */
 
 const O = CONFIG.operations;
@@ -24,7 +24,7 @@ function canvasTex(w, h, draw) {
   return t;
 }
 
-/** Stacked rice bags seen through a container door. */
+/** Stacked cargo bags seen through a container door. */
 function bagWallTexture(color) {
   return canvasTex(256, 256, (x, w, h) => {
     x.fillStyle = '#6b5410';
@@ -115,42 +115,50 @@ export function buildOperations(M, ancillary) {
   }
 
   // ===========================================================================
-  // 2. Rice container stuffing
+  // 2. Container stuffing area
   // ===========================================================================
-  const R = O.riceStuffing;
+  const R = O.stuffing;
   const X0 = m(R.x0), X1 = m(R.x1), Z0 = m(R.z0), Z1 = m(R.z1);
-  const CL = 6.06, pitch = 2.9;
-  const groupLen = R.perGroup * pitch;
-  const total = R.groups * groupLen + (R.groups - 1) * m(R.groupGap);
-  const zStart = Z0 + (Z1 - Z0 - total) / 2;
+  const CL = 6.06, pitch = m(R.bayPitch);
+  const nB = Math.floor((Z1 - Z0) / pitch);
+  const zStart = Z0 + (Z1 - Z0 - nB * pitch) / 2;
   const rows = [
-    { xc: X0 + CL / 2 + 0.3, dir: 1 }, // west row, doors face east (+x)
-    { xc: X1 - CL / 2 - 0.3, dir: -1 }, // east row, doors face west (-x)
+    { xc: X0 + 6.8, dir: 1 }, // west row: doors face east (+x)
+    { xc: X1 - 6.8, dir: -1 }, // east row: doors face west (-x)
   ];
-  const doors = []; // { xd, z, dir }
-  const bodyM = [], bodyC = [], openM = [], fillM = [], doorM = [], doorC = [];
-  for (const row of rows) {
-    for (let g = 0; g < R.groups; g++) {
-      for (let i = 0; i < R.perGroup; i++) {
-        const z = zStart + g * (groupLen + m(R.groupGap)) + (i + 0.5) * pitch;
-        const col = new THREE.Color(pick(CONFIG.depot.containerColors));
-        bodyM.push(trs(row.xc, Y_YARD, z, Math.PI / 2));
-        bodyC.push(col);
-        const xd = row.xc + row.dir * (CL / 2);
-        const ry = row.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
-        openM.push(trs(xd + row.dir * 0.01, Y_YARD + 0.1 + 1.2, z, ry, 2.3, 2.4, 1));
-        const fill = 0.25 + rand() * 0.75;
-        fillM.push(trs(xd + row.dir * 0.02, Y_YARD + 0.1 + (2.4 * fill) / 2, z, ry, 2.3, 2.4 * fill, 1));
-        // two doors swung open a little past 90 degrees (flared outwards from the hinges)
-        for (const s of [-1, 1]) {
-          const flare = THREE.MathUtils.degToRad(5 + rand() * 15);
-          const ux = row.dir * Math.cos(flare), uz = s * Math.sin(flare);
-          doorM.push(trs(xd + ux * 0.6, Y_YARD + 1.3, z + s * 1.2 + uz * 0.6, Math.atan2(-uz, ux)));
-          doorC.push(col);
-        }
-        doors.push({ xd, z, dir: row.dir });
-      }
+  // bay states, shuffled
+  const states = [];
+  for (const [k, n] of Object.entries(R.mix)) for (let i = 0; i < n; i++) states.push(k);
+  while (states.length < nB * 2) states.push('empty');
+  for (let i = states.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [states[i], states[j]] = [states[j], states[i]];
+  }
+  const bays = [];
+  rows.forEach((row, ri) => {
+    for (let k = 0; k < nB; k++) {
+      const zc = zStart + k * pitch + 1.7;
+      bays.push({ xc: row.xc, dir: row.dir, xd: row.xc + row.dir * (CL / 2), zc, zt: zc + 3.25, state: states[ri * nB + k] });
     }
+  });
+
+  const bodyM = [], bodyC = [], openM = [], fillM = [], doorM = [], doorC = [], truckM = [];
+  for (const b of bays) {
+    const col = new THREE.Color(pick(CONFIG.depot.containerColors));
+    bodyM.push(trs(b.xc, Y_YARD, b.zc, Math.PI / 2));
+    bodyC.push(col);
+    const ry = b.dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+    openM.push(trs(b.xd + b.dir * 0.01, Y_YARD + 1.3, b.zc, ry, 2.3, 2.4, 1));
+    const fill = b.state === 'empty' ? (rand() < 0.5 ? 0.95 : 0.1) : 0.2 + rand() * 0.7;
+    fillM.push(trs(b.xd + b.dir * 0.02, Y_YARD + 0.1 + (2.4 * fill) / 2, b.zc, ry, 2.3, 2.4 * fill, 1));
+    for (const s of [-1, 1]) {
+      const flare = THREE.MathUtils.degToRad(5 + rand() * 15);
+      const ux = b.dir * Math.cos(flare), uz = s * Math.sin(flare);
+      doorM.push(trs(b.xd + ux * 0.6, Y_YARD + 1.3, b.zc + s * 1.2 + uz * 0.6, Math.atan2(-uz, ux)));
+      doorC.push(col);
+    }
+    // cargo truck parked alongside the container, tail at the door line, nose to the back
+    if (b.state !== 'empty') truckM.push(trs(b.xd + b.dir * 1.8, Y_YARD, b.zt, b.dir > 0 ? Math.PI : 0));
   }
   const cGeo = new THREE.BoxGeometry(2.44, 2.59, CL).translate(0, 1.295, 0);
   {
@@ -170,122 +178,176 @@ export function buildOperations(M, ancillary) {
   yard.add(instanced(plane, fillMat, fillM, null, { cast: false }));
   yard.add(instanced(new THREE.BoxGeometry(1.2, 2.5, 0.06), M.container, doorM, doorC));
 
-  // --- apron: tarps, bag piles, conveyors, cargo trucks -------------------------------
-  const tarpM = [], tarpC = [], bagM = [], bagC = [];
-  const bagYellow = new THREE.Color(R.bagColor);
-  const bagCol = () => bagYellow.clone().offsetHSL((rand() - 0.5) * 0.02, 0, (rand() - 0.5) * 0.08);
-  const piles = []; // pile centres for the walking workers
-  const pile = (cx, cz, nx, nz) => {
-    let h = 0;
-    for (let a = nx, b = nz; a > 0 && b > 0; a--, b--, h++) {
-      for (let i = 0; i < a; i++) {
-        for (let j = 0; j < b; j++) {
-          const x = cx + (i - (a - 1) / 2) * 0.62 + (rand() - 0.5) * 0.1;
-          const z = cz + (j - (b - 1) / 2) * 0.95 + (rand() - 0.5) * 0.12;
-          bagM.push(trs(x, Y_YARD + 0.13 + h * 0.24, z, Math.PI / 2 + (rand() - 0.5) * 0.3));
-          bagC.push(bagCol());
-        }
-      }
-    }
+  const truckMats = {
+    cab: new THREE.MeshStandardMaterial({ color: '#f1f1ec', roughness: 0.4, metalness: 0.3 }),
+    body: new THREE.MeshStandardMaterial({ color: '#46663a', roughness: 0.7 }),
+    tarp: new THREE.MeshStandardMaterial({ color: '#3b4046', roughness: 0.9 }),
+    chassis: M.chassis,
+    tyre: M.tyre,
+    glass: M.windshield,
   };
-  const used = new Set();
-  const choose = (filter) => {
-    for (let t = 0; t < 200; t++) {
-      const i = Math.floor(rand() * doors.length);
-      if (!used.has(i) && filter(doors[i], i)) {
-        used.add(i);
-        return i;
-      }
+  const cargoParts = mergedParts(cargoTruckParts());
+  for (const [k, g] of Object.entries(cargoParts)) yard.add(instanced(g, truckMats[k], truckM, null));
+
+  // bay markings on the ground (container slot + truck slot)
+  {
+    const lines = [];
+    const y = Y_YARD + 0.075;
+    for (const b of bays) {
+      const xa = Math.min(b.xd, b.xd - b.dir * 10.5), xb = Math.max(b.xd, b.xd - b.dir * 10.5);
+      const za = b.zc - 1.6, zb = b.zc + 5.2;
+      lines.push(bx(xb - xa, 0.02, 0.14, (xa + xb) / 2, y, za), bx(xb - xa, 0.02, 0.14, (xa + xb) / 2, y, zb));
     }
-    return -1;
-  };
-  // cargo trucks backed up to container doors (bags carried straight across)
-  const truckM = [], truckDoors = [];
-  for (let t = 0; t < R.cargoTrucks; t++) {
-    const i = choose((d, k) => k % R.perGroup > 1 && k % R.perGroup < R.perGroup - 2 && !used.has(k - 1) && !used.has(k + 1));
-    if (i < 0) continue;
-    used.add(i - 1);
-    used.add(i + 1);
-    const d = doors[i];
-    truckM.push(trs(d.xd + d.dir * 1.4, Y_YARD, d.z + 1.6, d.dir > 0 ? 0 : Math.PI));
-    truckDoors.push(d);
+    statics.add(mesh(merge(lines), white, { cast: false }));
   }
-  // conveyors from a bag pile up into a container
-  const belts = [];
-  for (let c = 0; c < R.conveyors; c++) {
-    const i = choose(() => true);
-    if (i < 0) continue;
-    const d = doors[i];
-    const a = new THREE.Vector3(d.xd + d.dir * 7.2, Y_YARD + 0.55, d.z);
-    const b = new THREE.Vector3(d.xd - d.dir * 0.6, Y_YARD + 1.75, d.z);
-    belts.push({ a, b, d });
-    tarpM.push(trs(d.xd + d.dir * 9.8, Y_YARD + 0.07, d.z, 0, 6.5, 1, 5.4));
-    tarpC.push(new THREE.Color(pick(R.tarpColors)));
-    pile(d.xd + d.dir * 10, d.z, 8, 5);
-    piles.push({ x: d.xd + d.dir * 8.2, z: d.z, door: d });
-  }
-  // more tarps and bag piles in front of open doors
-  for (let t = 0; t < 7; t++) {
-    const i = choose(() => true);
-    if (i < 0) continue;
-    const d = doors[i];
-    tarpM.push(trs(d.xd + d.dir * 4.6, Y_YARD + 0.07, d.z, 0, 5.6, 1, 4.6));
-    tarpC.push(new THREE.Color(pick(R.tarpColors)));
-    pile(d.xd + d.dir * 5, d.z, 7, 4);
-    piles.push({ x: d.xd + d.dir * 2.6, z: d.z, door: d });
-  }
-  const tarpGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-  const tarpMat = new THREE.MeshStandardMaterial({ roughness: 0.65, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 });
-  statics.add(instanced(tarpGeo, tarpMat, tarpM, tarpC, { cast: false }));
+
+  // conveyors: from the truck tail up into the container
   const bagGeo = new THREE.BoxGeometry(0.58, 0.22, 0.9);
   const bagMat = new THREE.MeshStandardMaterial({ roughness: 0.8 });
-  yard.add(instanced(bagGeo, bagMat, bagM, bagC));
-
-  // conveyor frames
+  const bagYellow = new THREE.Color(R.bagColor);
+  const bagCol = () => bagYellow.clone().offsetHSL((rand() - 0.5) * 0.02, 0, (rand() - 0.5) * 0.08);
+  const belts = [];
   const frames = [], legs = [];
-  for (const { a, b } of belts) {
-    const dir = new THREE.Vector3().subVectors(b, a);
+  for (const b of bays.filter((q) => q.state === 'conveyor')) {
+    // from the truck bed (tail) down the side of the truck, turning into the container door
+    const a = new THREE.Vector3(b.xd + b.dir * 3.4, Y_YARD + 1.1, b.zt + 0.3);
+    const e = new THREE.Vector3(b.xd - b.dir * 1.1, Y_YARD + 2.0, b.zc);
+    belts.push({ a, b: e, yaw: Math.atan2(-(e.z - a.z), e.x - a.x), bay: b });
+    const dir = new THREE.Vector3().subVectors(e, a);
     const L = dir.length();
-    const g = new THREE.BoxGeometry(L, 0.22, 0.85);
-    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.clone().normalize()));
-    g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+    const g = new THREE.BoxGeometry(L + 0.6, 0.25, 0.95);
+    // explicit pitch then yaw, so the belt surface stays level across its width
+    const horiz = Math.hypot(dir.x, dir.z);
+    g.rotateZ(Math.atan2(dir.y, horiz));
+    g.rotateY(Math.atan2(-dir.z, dir.x));
+    g.translate((a.x + e.x) / 2, (a.y + e.y) / 2, (a.z + e.z) / 2);
     frames.push(g);
-    for (const t of [0.2, 0.8]) {
-      const p = new THREE.Vector3().lerpVectors(a, b, t);
-      for (const s of [-0.35, 0.35]) legs.push(bx(0.08, p.y - Y_YARD, 0.08, p.x, (p.y + Y_YARD) / 2, p.z + s));
+    for (const t of [0.15, 0.7]) {
+      const p = new THREE.Vector3().lerpVectors(a, e, t);
+      legs.push(bx(0.08, p.y - Y_YARD, 0.08, p.x, (p.y + Y_YARD) / 2, p.z + 0.3), bx(0.08, p.y - Y_YARD, 0.08, p.x, (p.y + Y_YARD) / 2, p.z - 0.3));
     }
   }
   if (frames.length) {
     statics.add(mesh(merge(frames), new THREE.MeshStandardMaterial({ color: '#2e7d4f', roughness: 0.6, metalness: 0.2 })));
     statics.add(mesh(merge(legs), M.pole, { cast: false }));
   }
-  // bags riding up the conveyors (animated)
-  const BPB = 5;
+  const BPB = 4;
   const beltBags = new THREE.InstancedMesh(bagGeo, bagMat, Math.max(1, belts.length * BPB));
   beltBags.frustumCulled = false;
   beltBags.castShadow = true;
+  beltBags.userData.dynamic = true;
   for (let i = 0; i < belts.length * BPB; i++) beltBags.setColorAt(i, bagCol());
   yard.add(beltBags);
 
-  // covered cargo trucks
-  if (truckM.length) {
-    const cp = mergedParts(cargoTruckParts());
-    const mats = {
-      cab: new THREE.MeshStandardMaterial({ color: '#f1f1ec', roughness: 0.4, metalness: 0.3 }),
-      body: new THREE.MeshStandardMaterial({ color: '#46663a', roughness: 0.7 }),
-      tarp: new THREE.MeshStandardMaterial({ color: '#3b4046', roughness: 0.9 }),
-      chassis: M.chassis,
-      tyre: M.tyre,
-      glass: M.windshield,
-    };
-    for (const [k, g] of Object.entries(cp)) yard.add(instanced(g, mats[k], truckM, null));
+  // --- moving trucks: arriving / leaving through the apron (loop with a stop, queueing) -----
+  const p0 = [-339, 188.5], p1 = [-339, 27], p2 = [-382, 27], p3 = [-382, 188.5];
+  const S = [(p3[0] + p0[0]) / 2, 188.5];
+  const loop = new Path(fillet([S, p0, p1, p2, p3, S], 9));
+  const at = (s, out) => loop.at(((s % loop.len) + loop.len) % loop.len, out);
+  // apron stretch (southbound along x = -382) where trucks stop for a while
+  let sA = 0, sB = 0;
+  {
+    const q = { x: 0, z: 0 };
+    let bA = 1e9, bB = 1e9;
+    for (let s = 0; s < loop.len; s += 0.5) {
+      at(s, q);
+      const dA = Math.hypot(q.x + 382, q.z - 60), dB = Math.hypot(q.x + 382, q.z - 172);
+      if (dA < bA) (bA = dA), (sA = s);
+      if (dB < bB) (bB = dB), (sB = s);
+    }
+  }
+  const nCargo = R.movingCargoTrucks, nCont = R.movingContainerTrucks, nMov = nCargo + nCont;
+  const dynSet = (parts, matFor, n, colorKey) => {
+    const out = [];
+    for (const [k, g] of Object.entries(parts)) {
+      const im = new THREE.InstancedMesh(g, matFor(k), Math.max(1, n));
+      im.frustumCulled = false;
+      im.castShadow = true;
+      im.userData.dynamic = true;
+      im.userData.key = k;
+      if (k === colorKey) for (let i = 0; i < n; i++) im.setColorAt(i, new THREE.Color(pick(colorKey === 'cab' ? CONFIG.trucks.cabColors : CONFIG.depot.containerColors)));
+      yard.add(im);
+      out.push(im);
+    }
+    return out;
+  };
+  const cargoDyn = dynSet(cargoParts, (k) => truckMats[k], nCargo, null);
+  const tractorDyn = dynSet(mergedParts(tractorParts()), (k) => partMaterial(M, k), nCont, 'cab');
+  const trailerDyn = dynSet(mergedParts(trailerParts()), (k) => partMaterial(M, k), nCont, 'container');
+  const movers = [];
+  for (let i = 0; i < nMov; i++) {
+    movers.push({ kind: i < nCargo ? 'cargo' : 'container', idx: i < nCargo ? i : i - nCargo, s: (i / nMov) * loop.len, wait: 0, stopAt: sA + rand() * (sB - sA), stopped: false, len: i < nCargo ? 10.3 : LTOT });
+  }
+  const fP = { x: 0, z: 0 }, kP = { x: 0, z: 0 }, rP = { x: 0, z: 0 };
+  const place = (ims, i, px, pz, yaw) => {
+    _q.setFromAxisAngle(_up, yaw);
+    _m.compose(_p.set(px, Y_YARD, pz), _q, _s.set(1, 1, 1));
+    for (const im of ims) im.setMatrixAt(i, _m);
+  };
+  function updateMovers(dt) {
+    const speed = 6;
+    for (const mv of movers) {
+      if (mv.wait > 0) {
+        mv.wait -= dt;
+        continue;
+      }
+      // queue: keep a gap to the vehicle ahead
+      let gap = Infinity;
+      for (const o of movers) if (o !== mv) gap = Math.min(gap, (((o.s - o.len - mv.s) % loop.len) + loop.len) % loop.len);
+      if (gap < 6) continue;
+      const before = ((mv.s % loop.len) + loop.len) % loop.len;
+      mv.s += speed * Math.min(1, (gap - 6) / 10) * dt;
+      const after = ((mv.s % loop.len) + loop.len) % loop.len;
+      if (!mv.stopped && before <= mv.stopAt && after > mv.stopAt) {
+        mv.wait = 6 + rand() * 8; // loading / checking stop in the apron
+        mv.stopped = true;
+      }
+      if (after < before) {
+        mv.stopped = false; // new lap
+        mv.stopAt = sA + rand() * (sB - sA);
+      }
+    }
+    for (const mv of movers) {
+      if (mv.kind === 'cargo') {
+        at(mv.s, fP);
+        at(mv.s - 9.8, rP);
+        place(cargoDyn, mv.idx, rP.x, rP.z, Math.atan2(-(fP.z - rP.z), fP.x - rP.x));
+      } else {
+        at(mv.s, fP);
+        at(mv.s - LC, kP);
+        at(mv.s - LTOT, rP);
+        place(tractorDyn, mv.idx, kP.x, kP.z, Math.atan2(-(fP.z - kP.z), fP.x - kP.x));
+        place(trailerDyn, mv.idx, rP.x, rP.z, Math.atan2(-(kP.z - rP.z), kP.x - rP.x));
+      }
+    }
+    for (const im of [...cargoDyn, ...tractorDyn, ...trailerDyn]) im.instanceMatrix.needsUpdate = true;
   }
 
   // --- workers ---------------------------------------------------------------------------
   const wp = workerParts();
   const shirt = ['#f07a1a', '#1f4fa8', '#c62828', '#2b2f36', '#f2f2ee', '#3b6fb0'].map((c) => new THREE.Color(c));
   const hats = ['#ffffff', '#f7d117', '#f07a1a'].map((c) => new THREE.Color(c));
-  const nW = R.workers;
+  const workers = [];
+  for (const b of bays) {
+    const tail = { x: b.xd + b.dir * 2.0, z: b.zt };
+    const door = { x: b.xd + b.dir * 0.35, z: b.zc };
+    if (b.state === 'conveyor') {
+      workers.push({ walk: false, x: b.xd + b.dir * 3.9, z: b.zt - 0.6, ry: Math.atan2(-(b.zc - b.zt), -b.dir) }); // feeding the belt at the truck
+      workers.push({ walk: false, x: b.xd + b.dir * 0.6, z: b.zc - 0.7, ry: b.dir > 0 ? Math.PI : 0 }); // receiving at the door
+    } else if (b.state === 'hand') {
+      const n = 2 + Math.floor(rand() * 2);
+      for (let i = 0; i < n; i++) {
+        workers.push({ walk: true, carry: true, ax: tail.x + (rand() - 0.5) * 0.6, az: tail.z + (rand() - 0.5) * 1.4, bx: door.x, bz: door.z + (rand() - 0.5) * 1.2, t: rand() * 8, speed: 0.9 + rand() * 0.3 });
+      }
+    } else if (b.state === 'parked' && rand() < 0.6) {
+      workers.push({ walk: false, x: b.xd - b.dir * 8.8, z: b.zt + 1.9, ry: rand() * 6.28 }); // driver by the cab
+    }
+  }
+  for (let i = 0; i < R.supervisors; i++) {
+    const x = (X0 + X1) / 2 + (i % 2 ? 6 : -6);
+    workers.push({ walk: true, carry: false, ax: x, az: Z0 + 8 + rand() * 20, bx: x + (rand() - 0.5) * 4, bz: Z1 - 8 - rand() * 20, t: rand() * 60, speed: 0.8 + rand() * 0.3 });
+  }
+  const nW = workers.length;
   const wm = {
     legs: new THREE.InstancedMesh(wp.legs, new THREE.MeshStandardMaterial({ color: '#2a3446', roughness: 0.8 }), nW),
     torso: new THREE.InstancedMesh(wp.torso, new THREE.MeshStandardMaterial({ roughness: 0.8 }), nW),
@@ -296,103 +358,73 @@ export function buildOperations(M, ancillary) {
   for (const im of [...Object.values(wm), carried]) {
     im.frustumCulled = false;
     im.castShadow = true;
+    im.userData.dynamic = true;
     yard.add(im);
   }
-  const workers = [];
   for (let i = 0; i < nW; i++) {
     wm.torso.setColorAt(i, pick(shirt));
     wm.hat.setColorAt(i, pick(hats));
     carried.setColorAt(i, bagCol());
-    let w;
-    const kind = i % 3;
-    if (kind === 0 && piles.length) {
-      // carrier: pile or truck <-> container door
-      const p = piles[i % piles.length];
-      w = { walk: true, ax: p.x, az: p.z + (rand() - 0.5) * 2, bx: p.door.xd + p.door.dir * 0.4, bz: p.door.z + (rand() - 0.5) * 1.2, t: rand() * 2, speed: 1.1 + rand() * 0.3 };
-    } else if (kind === 1 && truckDoors.length) {
-      const d = truckDoors[i % truckDoors.length];
-      w = { walk: true, ax: d.xd + d.dir * 1.2, az: d.z + 2.3, bx: d.xd - d.dir * 0.2, bz: d.z + (rand() - 0.5), t: rand() * 2, speed: 0.9 + rand() * 0.3 };
-    } else {
-      // standing: at a pile, a conveyor foot, or supervising on the apron
-      const b = belts.length ? belts[i % belts.length] : null;
-      const x = b && rand() < 0.6 ? b.a.x + (rand() - 0.5) * 1.6 : X0 + 8 + rand() * (X1 - X0 - 16);
-      const z = b ? b.a.z + (rand() - 0.5) * 2.4 : Z0 + rand() * (Z1 - Z0);
-      w = { walk: false, x, z, ry: rand() * Math.PI * 2, phase: rand() * 6 };
-    }
-    workers.push(w);
+    workers[i].phase = rand() * 6;
   }
+  for (const im of [...Object.values(wm), carried, beltBags]) if (im.instanceColor) im.instanceColor.needsUpdate = true;
 
   function update(dt) {
-    // bags riding the conveyors
     const time = performance.now() / 1000;
     belts.forEach((b, bi) => {
+      _q.setFromAxisAngle(_up, b.yaw);
       for (let k = 0; k < BPB; k++) {
-        const u = (time * 0.18 + k / BPB + bi * 0.13) % 1;
+        const u = (time * 0.3 + k / BPB + bi * 0.17) % 1;
         _p.lerpVectors(b.a, b.b, u);
         _p.y += 0.2;
-        _q.setFromAxisAngle(_up, b.d.dir > 0 ? 0 : Math.PI);
         beltBags.setMatrixAt(bi * BPB + k, _m.compose(_p, _q, _s.set(1, 1, 1)));
       }
     });
     beltBags.instanceMatrix.needsUpdate = true;
-    // workers
+    updateMovers(dt);
     workers.forEach((w, i) => {
       let x, z, ry, bob = 0, carry = false;
       if (w.walk) {
         const L = Math.hypot(w.bx - w.ax, w.bz - w.az) || 1;
-        const cycle = (2 * L) / w.speed + 3; // two walks + 1.5 s pause at each end
-        w.t = (w.t + dt) % cycle;
         const walkT = L / w.speed;
+        const cycle = 2 * walkT + 3;
+        w.t = (w.t + dt) % cycle;
         let u, toward;
-        if (w.t < walkT) {
-          u = w.t / walkT;
-          toward = true;
-        } else if (w.t < walkT + 1.5) {
-          u = 1;
-          toward = true;
-        } else if (w.t < 2 * walkT + 1.5) {
-          u = 1 - (w.t - walkT - 1.5) / walkT;
-          toward = false;
-        } else {
-          u = 0;
-          toward = false;
-        }
+        if (w.t < walkT) (u = w.t / walkT), (toward = true);
+        else if (w.t < walkT + 1.5) (u = 1), (toward = true);
+        else if (w.t < 2 * walkT + 1.5) (u = 1 - (w.t - walkT - 1.5) / walkT), (toward = false);
+        else (u = 0), (toward = false);
         x = w.ax + (w.bx - w.ax) * u;
         z = w.az + (w.bz - w.az) * u;
         const dx = (w.bx - w.ax) * (toward ? 1 : -1), dz = (w.bz - w.az) * (toward ? 1 : -1);
         ry = Math.atan2(-dz, dx);
-        const moving = u > 0 && u < 1;
-        bob = moving ? Math.abs(Math.sin(w.t * 7)) * 0.05 : 0;
-        carry = toward && u < 1; // carries a bag towards the container
+        bob = u > 0 && u < 1 ? Math.abs(Math.sin(w.t * 7)) * 0.05 : 0;
+        carry = w.carry && toward && u < 1; // bag on the shoulder from the truck to the container
       } else {
         x = w.x;
         z = w.z;
-        ry = w.ry + Math.sin(time * 0.5 + w.phase) * 0.4;
+        ry = w.ry + Math.sin(time * 0.8 + w.phase) * 0.35;
       }
       _q.setFromAxisAngle(_up, ry);
       _m.compose(_p.set(x, Y_YARD + bob, z), _q, _s.set(1, 1, 1));
       for (const im of Object.values(wm)) im.setMatrixAt(i, _m);
-      if (carry) {
-        const c = _m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 1.62, 0.18));
-        carried.setMatrixAt(i, c);
-      } else carried.setMatrixAt(i, HIDDEN);
+      carried.setMatrixAt(i, carry ? _m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 1.62, 0.18)) : HIDDEN);
     });
     for (const im of [...Object.values(wm), carried]) im.instanceMatrix.needsUpdate = true;
   }
-  for (const im of [...Object.values(wm), carried, beltBags]) if (im.instanceColor) im.instanceColor.needsUpdate = true;
   update(0);
 
-  // hover target and label for the whole stuffing area
+  // hover target and label for the whole area
   {
     const g = new THREE.Group();
-    g.name = 'rice-stuffing';
+    g.name = 'stuffing-area';
     const hit = new THREE.Mesh(new THREE.BoxGeometry(X1 - X0, 3, Z1 - Z0), new THREE.MeshBasicMaterial({ visible: false }));
     hit.position.set((X0 + X1) / 2, Y_YARD + 1.5, (Z0 + Z1) / 2);
     g.add(hit);
     statics.add(g);
-    addHover(g, 'Rice container stuffing', `${doors.length} containers, bags loaded by conveyor and by hand`);
-    anchors.push({ text: 'Rice container stuffing', cls: 'zone', pos: [(X0 + X1) / 2, Y_YARD + 10, (Z0 + Z1) / 2] });
+    addHover(g, 'Container stuffing area', `${bays.length} stuffing bays, trucks unloading by conveyor and by hand`);
+    anchors.push({ text: 'Container stuffing area', cls: 'zone', pos: [(X0 + X1) / 2, Y_YARD + 10, (Z0 + Z1) / 2] });
   }
 
-  return { statics, yard, anchors, update, stats: { bags: bagM.length, workers: nW, containers: doors.length } };
+  return { statics, yard, anchors, update, belts, stats: { bays: bays.length, workers: nW, belts: belts.length, movers: nMov } };
 }

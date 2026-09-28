@@ -278,14 +278,17 @@ export const CONFIG = {
   operations: {
     // Container trucks waiting for their turn: bays east of the EV charging row, nose to the lane
     truckWaiting: { x0: -384500, bayDepth: 18000, z0: -166000, z1: 16000, bayWidth: 4000, occupied: 0.65 },
-    // Rice container stuffing (Phuoc An Depot service): the paved area east of the laden yard.
-    // Two rows of 20 ft containers with the doors open towards a central work apron.
-    riceStuffing: {
+    // Container stuffing (Phuoc An Depot service) on the paved area east of the laden yard.
+    // Bays along both sides of a work apron: a 20 ft container with open doors and a cargo truck parked
+    // alongside it (parallel). Bays work by conveyor (truck to container), by hand, or wait.
+    stuffing: {
       x0: -404000, x1: -354000, z0: 44000, z1: 186000,
-      groups: 3, perGroup: 10, groupGap: 8000,
-      conveyors: 5, cargoTrucks: 4, workers: 42,
+      bayPitch: 7600,
+      mix: { conveyor: 9, hand: 11, parked: 8 }, // remaining bays: container only, waiting for a truck
+      movingCargoTrucks: 4, // arriving / leaving through the apron
+      movingContainerTrucks: 2, // taking stuffed containers out
+      supervisors: 4,
       bagColor: '#f2c21b',
-      tarpColors: ['#f07a1a', '#1f4fa8', '#2f6fc0'],
     },
   },
 

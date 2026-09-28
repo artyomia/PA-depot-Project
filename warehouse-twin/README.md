@@ -207,7 +207,7 @@ warehouse-twin/
     ui.js             overlay panels, info card, legend, compass
     depot.js          container depot: container blocks, access control gates, office, animated yard trucks
                       and reach stackers (pick and place loop)
-    operations.js     container truck waiting area and rice container stuffing (workers, conveyors)
+    operations.js     container truck waiting area and container stuffing area (trucks, conveyors, workers)
     perf.js           performance profiles (Auto / High / Balanced / Light) and adaptive quality
     logo.js           Phuoc An brand mark (traced from the supplied artwork) for roof, panels, UI, favicon
     materials.js      procedural canvas textures and shared materials
@@ -263,9 +263,12 @@ construction document.
   The next block row is outlined in blue (containers MNR done) and orange (containers awaiting MNR).
   Sizes are in `config.depot.wash` and `config.depot.mnr`; each yard's `strip` and `outline` switch them on.
 - **Container truck waiting area** east of the EV charging row: 45 bays with trucks nose to the lane.
-- **Rice container stuffing** (Phuoc An Depot service) on the paved area east of the laden yard: two rows of
-  20 ft containers with the doors open towards a work apron, conveyors carrying bags into the containers,
-  bag piles on tarps, covered cargo trucks unloading straight into containers, and workers carrying bags.
-  Sizes and counts are in `config.operations` (module `src/operations.js`).
+- **Container stuffing area** (Phuoc An Depot service) on the paved area east of the laden yard: 36 bays of
+  20 ft containers with open doors facing a work apron. Cargo trucks park parallel alongside the containers;
+  some bays load by conveyor (belt from the truck tail into the container), some by hand (workers carrying
+  bags), some trucks are parked waiting, and cargo / container trucks drive in and out through the apron
+  with short stops. Mix and counts in `config.operations.stuffing` (module `src/operations.js`).
+- **Reach stackers** follow the reference machine: red chassis, raised cab, twin front wheels, dark
+  telescopic boom from the rear pivot tower, lift cylinder and a spreader with yellow twist-lock corners.
 - **Access control gates** (5 lanes with booths, barriers and a branded canopy) at road D1, road N1 and
   road N3, and the 3-floor **office building** with its orange entrance portal next to the N3 gate.

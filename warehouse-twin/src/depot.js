@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { m, BUILD_L, BUILD_W, Y_YARD, merge, mesh, instanced, trs, rng, worldUV, flatRect, clamp } from './util.js';
 import { logoCanvas } from './materials.js';
-import { LT, LC, LTOT, bx, wheel, trailerParts, tractorParts, mergedParts, partMaterial, fillet, Path, fixContainerUV, reachStackerParts } from './trucks.js';
+import { LT, LC, LTOT, bx, wheel, trailerParts, tractorParts, mergedParts, partMaterial, fillet, Path, fixContainerUV, reachStackerParts, reachStackerBody, reachSpreaderParts, reachMaterial, RS_REACH, RS_PIVOT, RS_CYL_BASE } from './trucks.js';
 
 /**
  * Container depot in the west yard (master plan REV02):
@@ -27,30 +27,9 @@ function containerGeo(len) {
 // ---------------------------------------------------------------------------
 // Reach stacker split into body / boom / spreader for animation (local +x = boom direction)
 // ---------------------------------------------------------------------------
-const RS = { reach: 9.0, pivot: new THREE.Vector3(-3.2, 3.4, -0.3), low: 3.3 };
-
-function stackerBody() {
-  const p = { body: [], dark: [], tyre: [], glass: [] };
-  p.body.push(bx(7.6, 1.4, 3.4, 0, 1.6, 0));
-  p.body.push(bx(1.5, 2.2, 3.4, -3.9, 2.0, 0));
-  p.dark.push(bx(1.9, 0.4, 1.8, -0.5, 2.5, 1.0));
-  p.body.push(bx(1.9, 0.25, 1.8, -0.5, 4.85, 1.0));
-  p.glass.push(bx(1.7, 2.2, 1.6, -0.5, 3.6, 1.0));
-  for (const s of [-1, 1]) {
-    p.tyre.push(wheel(0.95, 0.8, 2.3, 0.95, s * 1.35));
-    p.tyre.push(wheel(0.95, 0.8, 2.3, 0.95, s * 0.55));
-    p.tyre.push(wheel(0.78, 0.6, -2.6, 0.78, s * 1.35));
-  }
-  return p;
-}
-
-function spreaderParts() {
-  const p = { body: [], dark: [] };
-  p.dark.push(bx(0.6, 1.2, 0.6, 0, 0.7, -0.3));
-  p.body.push(bx(1.1, 0.45, 6.1, 0, 0, 0));
-  for (const s of [-1, 1]) p.dark.push(bx(0.3, 0.5, 0.3, 0, -0.4, s * 2.9));
-  return p;
-}
+const RS = { reach: RS_REACH, pivot: RS_PIVOT, low: 3.3 };
+const stackerBody = reachStackerBody;
+const spreaderParts = () => reachSpreaderParts();
 
 // ---------------------------------------------------------------------------
 // Instanced "part sets": one InstancedMesh per material, all sharing the same matrices
@@ -340,7 +319,7 @@ export function buildDepot(M, ancillary) {
   }
   if (stripStackers.length) {
     const rs0 = mergedParts(reachStackerParts());
-    for (const [k, gg] of Object.entries(rs0)) yard.add(instanced(gg, ({ body: M.reachBody, dark: M.chassis, tyre: M.tyre, glass: M.windshield })[k], stripStackers, null));
+    for (const [k, gg] of Object.entries(rs0)) yard.add(instanced(gg, reachMaterial(M, k), stripStackers, null));
   }
   yard.add(instanced(g20, M.container, m20, c20));
   yard.add(instanced(g40, M.container, m40, c40));
@@ -488,11 +467,12 @@ export function buildDepot(M, ancillary) {
   // spread the stackers over the yards: take every k-th candidate
   const chosen = [];
   for (let i = 0; i < nRS; i++) chosen.push(targets[Math.floor(((i + 0.5) * targets.length) / nRS)]);
-  const rsBody = new PartSet(yard, mergedParts(stackerBody()), (k) => ({ body: M.reachBody, dark: M.chassis, tyre: M.tyre, glass: M.windshield })[k], nRS);
-  const rsSpread = new PartSet(yard, mergedParts(spreaderParts()), (k) => ({ body: M.reachBody, dark: M.chassis })[k], nRS);
+  const rsBody = new PartSet(yard, mergedParts(stackerBody()), (k) => reachMaterial(M, k), nRS);
+  const rsSpread = new PartSet(yard, mergedParts(spreaderParts()), (k) => reachMaterial(M, k), nRS);
   const unit = new THREE.BoxGeometry(1, 1, 1).translate(0.5, 0, 0);
-  const boomOuter = new PartSet(yard, { body: unit }, () => M.reachBody, nRS);
-  const boomInner = new PartSet(yard, { body: unit.clone() }, () => M.reachBody, nRS);
+  const boomOuter = new PartSet(yard, { body: unit }, () => M.reachBoom, nRS);
+  const boomInner = new PartSet(yard, { body: unit.clone() }, () => M.reachBoom, nRS);
+  const liftCyl = new PartSet(yard, { body: unit.clone() }, () => M.reachBody, nRS);
   const carried = new PartSet(yard, { container: g20 }, () => M.container, nRS, { colorKey: 'container' });
   const placed = new PartSet(yard, { container: g20 }, () => M.container, nRS, { colorKey: 'container' });
   const stackers = chosen.map((t, i) => {
@@ -542,14 +522,22 @@ export function buildDepot(M, ancillary) {
         const local = new THREE.Matrix4().makeTranslation(l0, 0, 0).multiply(new THREE.Matrix4().makeScale(l1 - l0, t, t));
         return _c.clone().multiply(_m).multiply(local);
       };
-      boomOuter.set(i, boom(0, Math.min(8, L * 0.62), 1.0));
-      boomInner.set(i, boom(L * 0.5, L, 0.8));
+      boomOuter.set(i, boom(0, Math.min(8, L * 0.62), 1.15));
+      boomInner.set(i, boom(L * 0.5, L, 0.85));
+      // lift cylinder from the chassis to 45 % of the boom
+      {
+        const px = RS.pivot.x + Math.cos(ang) * L * 0.45, py = RS.pivot.y + Math.sin(ang) * L * 0.45;
+        const cx0 = RS_CYL_BASE.x, cy0 = RS_CYL_BASE.y;
+        const cl = Math.hypot(px - cx0, py - cy0), ca = Math.atan2(py - cy0, px - cx0);
+        const cm = new THREE.Matrix4().makeTranslation(cx0, cy0, 0).multiply(new THREE.Matrix4().makeRotationZ(ca)).multiply(new THREE.Matrix4().makeTranslation(0, 0, 0)).multiply(new THREE.Matrix4().makeScale(cl, 0.55, 0.55));
+        liftCyl.set(i, _c.clone().multiply(cm));
+      }
       const spread = _c.clone().multiply(new THREE.Matrix4().makeTranslation(RS.reach, s.H, 0));
       rsSpread.set(i, spread);
       carried.set(i, s.hold ? spread.clone().multiply(new THREE.Matrix4().makeTranslation(0, -0.22 - 2.62, 0)) : ZERO);
       placed.set(i, s.onStack ? st.placedM : ZERO);
     });
-    for (const p of [rsBody, rsSpread, boomOuter, boomInner, carried, placed]) p.commit();
+    for (const p of [rsBody, rsSpread, boomOuter, boomInner, liftCyl, carried, placed]) p.commit();
   }
 
   // ===========================================================================

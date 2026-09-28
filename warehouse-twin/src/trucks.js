@@ -50,44 +50,80 @@ export function tractorParts() {
   return p;
 }
 
-// Reach stacker (local: +x = boom direction, origin at the chassis centre on the ground)
-const RS_REACH = 9.0; // horizontal distance from chassis centre to the spreader
-const RS_SPREADER_Y = 8.2;
-export function reachStackerParts() {
-  const p = { body: [], dark: [], tyre: [], glass: [] };
-  p.body.push(bx(7.6, 1.4, 3.4, 0, 1.6, 0)); // chassis
-  p.body.push(bx(1.5, 2.2, 3.4, -3.9, 2.0, 0)); // counterweight
-  p.dark.push(bx(1.9, 0.4, 1.8, -0.5, 2.5, 1.0)); // cab floor
-  p.body.push(bx(1.9, 0.25, 1.8, -0.5, 4.85, 1.0)); // cab roof
-  p.glass.push(bx(1.7, 2.2, 1.6, -0.5, 3.6, 1.0)); // cab glazing
+// Reach stacker, after the Kalmar-style reference: red chassis, raised cab in the middle, big dual front
+// wheels, rear counterweight with the boom pivot tower, dark telescopic boom running over the cab,
+// hydraulic lift cylinder and a dark spreader with yellow twist-lock corners.
+// Local frame: +x = boom direction, origin on the ground under the chassis centre.
+export const RS_REACH = 9.0; // horizontal distance from chassis centre to the spreader
+export const RS_SPREADER_Y = 8.2; // spreader height in the static (carrying) pose
+export const RS_PIVOT = new THREE.Vector3(-3.4, 4.3, 0);
+export const RS_CYL_BASE = new THREE.Vector3(2.1, 2.2, 0);
+
+/** Chassis, wheels, cab and counterweight (no boom). */
+export function reachStackerBody() {
+  const p = { body: [], dark: [], tyre: [], glass: [], cab: [], light: [] };
+  p.body.push(bx(8.6, 0.9, 2.7, 0.2, 1.35, 0)); // main frame
+  p.body.push(bx(1.8, 2.3, 3.3, -4.2, 1.75, 0)); // counterweight
+  p.body.push(bx(1.2, 2.7, 1.5, -3.4, 2.95, 0)); // boom pivot tower
+  p.body.push(bx(2.2, 1.0, 2.6, -2.2, 2.3, 0)); // engine hood
+  p.body.push(bx(3.3, 0.35, 3.5, 3.1, 2.0, 0)); // front mudguard deck over the drive axle
+  p.dark.push(bx(0.35, 0.45, 2.8, 4.75, 1.1, 0)); // front bumper
+  // cab: raised, in the middle of the machine, under the boom
+  p.cab.push(bx(1.9, 0.35, 1.7, -0.4, 2.05, 0));
+  p.glass.push(bx(1.75, 1.35, 1.6, -0.4, 2.9, 0));
+  p.cab.push(bx(2.0, 0.18, 1.8, -0.4, 3.65, 0));
+  for (const s of [-1, 1]) p.cab.push(bx(0.12, 1.4, 0.12, -0.4 + 0.85, 2.9, s * 0.78));
+  // drive axle with twin wheels, steer axle at the rear
   for (const s of [-1, 1]) {
-    p.tyre.push(wheel(0.95, 0.8, 2.3, 0.95, s * 1.35));
-    p.tyre.push(wheel(0.95, 0.8, 2.3, 0.95, s * 0.55));
-    p.tyre.push(wheel(0.78, 0.6, -2.6, 0.78, s * 1.35));
+    p.tyre.push(wheel(1.0, 0.6, 3.1, 1.0, s * 1.45));
+    p.tyre.push(wheel(1.0, 0.6, 3.1, 1.0, s * 0.8));
+    p.tyre.push(wheel(0.85, 0.55, -3.0, 0.85, s * 1.25));
   }
-  // telescopic boom from the rear pivot up to the spreader head
-  const pivot = new THREE.Vector3(-3.2, 3.4, -0.3);
-  const head = new THREE.Vector3(RS_REACH, RS_SPREADER_Y + 1.4, -0.3);
-  const dir = new THREE.Vector3().subVectors(head, pivot);
-  const len = dir.length();
-  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir.clone().normalize());
-  const boom = (w, h, l0, l1) => {
-    const g = new THREE.BoxGeometry(l1 - l0, h, w).translate((l0 + l1) / 2, 0, 0);
-    g.applyQuaternion(q);
-    g.translate(pivot.x, pivot.y, pivot.z);
-    return g;
-  };
-  p.body.push(boom(1.0, 1.0, 0, len * 0.62));
-  p.body.push(boom(0.8, 0.8, len * 0.55, len));
-  p.dark.push(bx(0.5, 2.6, 0.5, 0.6, 3.2, -0.3)); // lift cylinder
-  // rotator and spreader (parallel to the container, along z)
-  p.dark.push(bx(0.6, 1.2, 0.6, RS_REACH, RS_SPREADER_Y + 0.7, -0.3));
-  p.body.push(bx(1.1, 0.45, 6.1, RS_REACH, RS_SPREADER_Y, 0));
-  for (const s of [-1, 1]) p.dark.push(bx(0.3, 0.5, 0.3, RS_REACH, RS_SPREADER_Y - 0.4, s * 2.9));
+  p.light.push(bx(0.15, 0.2, 0.35, -5.12, 2.5, 1.2), bx(0.3, 0.3, 0.3, -3.4, 4.4, 0.9)); // beacon
   return p;
 }
 
-const reachMaterial = (M, key) => ({ body: M.reachBody, dark: M.chassis, tyre: M.tyre, glass: M.windshield })[key];
+/** Rotator, hanger and spreader; origin at the spreader beam centre, spreader along z. */
+export function reachSpreaderParts(len = 6.1) {
+  const p = { boom: [], light: [] };
+  p.boom.push(bx(0.7, 1.1, 0.7, 0, 0.8, 0)); // rotator
+  p.boom.push(bx(1.2, 0.5, len, 0, 0, 0)); // main beam
+  for (const s of [-1, 1]) {
+    p.boom.push(bx(2.44, 0.45, 0.4, 0, -0.1, s * (len / 2 - 0.2))); // end beams
+    for (const t of [-1, 1]) p.light.push(bx(0.28, 0.32, 0.28, t * 1.1, -0.35, s * (len / 2 - 0.2))); // twist-lock corners
+  }
+  return p;
+}
+
+const _bq = new THREE.Quaternion();
+/** Box geometry running from point a to point b (thickness t), for booms and cylinders. */
+export function beam(a, b, t, w = t) {
+  const d = new THREE.Vector3().subVectors(b, a);
+  const g = new THREE.BoxGeometry(d.length(), t, w).translate(d.length() / 2, 0, 0);
+  g.applyQuaternion(_bq.setFromUnitVectors(new THREE.Vector3(1, 0, 0), d.normalize()));
+  g.translate(a.x, a.y, a.z);
+  return g;
+}
+
+/** Full machine in the static carrying pose (boom raised, spreader at RS_SPREADER_Y). */
+export function reachStackerParts() {
+  const p = reachStackerBody();
+  p.boom = [];
+  const head = new THREE.Vector3(RS_REACH, RS_SPREADER_Y + 1.4, 0);
+  const dir = new THREE.Vector3().subVectors(head, RS_PIVOT);
+  const L = dir.length();
+  const at = (f) => RS_PIVOT.clone().addScaledVector(dir, f);
+  p.boom.push(beam(RS_PIVOT, at(0.62), 1.15, 1.2));
+  p.boom.push(beam(at(0.5), head, 0.85, 0.95));
+  p.body.push(beam(RS_CYL_BASE, at(0.45), 0.42, 0.42)); // lift cylinder
+  const sp = reachSpreaderParts();
+  for (const [k, list] of Object.entries(sp)) for (const g of list) (p[k] ||= []).push(g.translate(RS_REACH, RS_SPREADER_Y, 0));
+  void L;
+  return p;
+}
+
+export const reachMaterial = (M, key) =>
+  ({ body: M.reachBody, boom: M.reachBoom, dark: M.chassis, tyre: M.tyre, glass: M.windshield, cab: M.reachCab, light: M.yellowBlack })[key];
 
 export function mergedParts(parts) {
   const out = {};
@@ -258,7 +294,7 @@ export function buildTrucks(M, doors, parkingBays = [], evBays = []) {
   // two of them are carrying a container on the spreader
   WA.reachStackers.forEach((u, i) => {
     if (i % 2 === 1) {
-      cMats.push(trs(m(WA.reachStackerX) + RS_REACH, Y_YARD + RS_SPREADER_Y - 2.75, uToZ(m(u))));
+      cMats.push(trs(m(WA.reachStackerX) + RS_REACH, Y_YARD + RS_SPREADER_Y - 2.95, uToZ(m(u))));
       cCols.push(new THREE.Color(pick(TR.containerColors)));
     }
   });
