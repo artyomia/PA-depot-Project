@@ -207,6 +207,7 @@ warehouse-twin/
     ui.js             overlay panels, info card, legend, compass
     depot.js          container depot: container blocks, access control gates, office, animated yard trucks
                       and reach stackers (pick and place loop)
+    operations.js     container truck waiting area and rice container stuffing (workers, conveyors)
     perf.js           performance profiles (Auto / High / Balanced / Light) and adaptive quality
     logo.js           Phuoc An brand mark (traced from the supplied artwork) for roof, panels, UI, favicon
     materials.js      procedural canvas textures and shared materials
@@ -261,5 +262,10 @@ construction document.
   rooms, substation), and by the MNR area (100 containers / day: single 20 ft boxes on a loose 13 x 6 grid).
   The next block row is outlined in blue (containers MNR done) and orange (containers awaiting MNR).
   Sizes are in `config.depot.wash` and `config.depot.mnr`; each yard's `strip` and `outline` switch them on.
+- **Container truck waiting area** east of the EV charging row: 45 bays with trucks nose to the lane.
+- **Rice container stuffing** (Phuoc An Depot service) on the paved area east of the laden yard: two rows of
+  20 ft containers with the doors open towards a work apron, conveyors carrying bags into the containers,
+  bag piles on tarps, covered cargo trucks unloading straight into containers, and workers carrying bags.
+  Sizes and counts are in `config.operations` (module `src/operations.js`).
 - **Access control gates** (5 lanes with booths, barriers and a branded canopy) at road D1, road N1 and
   road N3, and the 3-floor **office building** with its orange entrance portal next to the N3 gate.

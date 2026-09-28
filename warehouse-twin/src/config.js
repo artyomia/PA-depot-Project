@@ -273,6 +273,23 @@ export const CONFIG = {
   },
 
   // ---------------------------------------------------------------------------
+  // YARD OPERATIONS (west yard)
+  // ---------------------------------------------------------------------------
+  operations: {
+    // Container trucks waiting for their turn: bays east of the EV charging row, nose to the lane
+    truckWaiting: { x0: -384500, bayDepth: 18000, z0: -166000, z1: 16000, bayWidth: 4000, occupied: 0.65 },
+    // Rice container stuffing (Phuoc An Depot service): the paved area east of the laden yard.
+    // Two rows of 20 ft containers with the doors open towards a central work apron.
+    riceStuffing: {
+      x0: -404000, x1: -354000, z0: 44000, z1: 186000,
+      groups: 3, perGroup: 10, groupGap: 8000,
+      conveyors: 5, cargoTrucks: 4, workers: 42,
+      bagColor: '#f2c21b',
+      tarpColors: ['#f07a1a', '#1f4fa8', '#2f6fc0'],
+    },
+  },
+
+  // ---------------------------------------------------------------------------
   // ANCILLARY BUILDINGS (plan position of the centre in site coordinates, mm)
   //   w = size east-west, d = size north-south, h = height
   // ---------------------------------------------------------------------------
