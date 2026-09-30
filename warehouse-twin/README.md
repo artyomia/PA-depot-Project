@@ -253,13 +253,16 @@ construction document.
   chargers, substation next to road N1) along the east edge of the park, which is narrowed accordingly.
 - **West (container) side.** Container trucks park parallel to the facade on the west road instead of
   reversing in, and 5 reach stackers stand perpendicular to the wall to pick from the container blocks
-  (2 x 20 ft along the wall, 4 rows deep, one high under the canopy), positions per REV02. The east side is
+  (2 x 20 ft along the wall, 4 rows deep, one high under the canopy); 2 reach stackers work on this side. The east side is
   unchanged.
 - **Container depot (west yard).** The five areas between the yard roads are container yards, not truck
   parking: blocks 7 containers wide, stacked up to 5 high with a 20 / 40 ft mix and the colours of the reference
-  photos, reach stacker aisles between the blocks. 7 reach stackers pick and place containers and 10 container
-  trucks drive through the yard roads, stopping at the access control gates, whose barriers open for them.
-- **North strip of the two middle yards (REV02).** The first block row next to road N1 is replaced by the
+  photos, reach stacker aisles between the blocks. 16 reach stackers pick and place containers; 14 container
+  trucks drive through the yard roads and stop at the access control gates (barriers open for them), and in 5
+  aisles further trucks drive in, stop beside a working reach stacker to drop off or pick up a container
+  (empty / laden), then drive out (`config.depot.reachStackers`, `yardTrucks`, `aisleServices`, `trucksPerAisle`).
+- **North strip of the two middle yards (REV02).** The first block row, directly against the fence on road N1
+  (no internal road in between), is replaced by the
   container washing (8 bays with canopy) and survey (9 bays) area with its service bar (fire water tanks, pump
   rooms, substation), and by the MNR area (100 containers / day: single 20 ft boxes on a loose 13 x 6 grid).
   The next block row is outlined in blue (containers MNR done) and orange (containers awaiting MNR).

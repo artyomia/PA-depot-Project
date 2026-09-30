@@ -89,7 +89,9 @@ export function buildDepot(M, ancillary) {
   const strips = []; // facility strips replacing the first block row { yd, kind, x0, x1, z0, z1 }
   const outlines = []; // painted lines around marked blocks
 
+  const stripEnd = {}; // yard index -> far edge of its facility strip (b axis)
   for (const yd of D.yards) {
+    const yi = D.yards.indexOf(yd);
     const X0 = m(yd.x0), X1 = m(yd.x1), Z0 = m(yd.z0), Z1 = m(yd.z1);
     // a = along the blocks, b = across (blocks side by side)
     const alongX = yd.dir === 'x';
@@ -108,6 +110,7 @@ export function buildDepot(M, ancillary) {
       if (yd.strip && c === 0) {
         // first block row (next to road N1) becomes the facility strip
         strips.push({ yd, kind: yd.strip, x0: X0, x1: X1, z0: Z0, z1: cb0 + colW + aisle * 0.5 });
+        stripEnd[yi] = cb0 + colW + aisle * 0.5;
         continue;
       }
       if (yd.outline && c === (yd.strip ? 1 : 0)) {
@@ -141,9 +144,10 @@ export function buildDepot(M, ancillary) {
           if (rand() < 0.02) h = 0;
           // candidate stack face for a reach stacker (20 ft, block edge facing an aisle)
           const face = s === 0 ? -1 : s === D.slots - 1 ? 1 : 0;
-          if (face && !is40 && h >= 1 && h <= D.maxTiers - 1 && k > 2 && k < nCell - 3 && rand() < 0.08) {
+          if (face && !is40 && h >= 1 && k > 2 && k < nCell - 3 && rand() < 0.6) {
+            h = Math.min(h, D.maxTiers - 1); // leave room for the tier the stacker places
             const n = alongX ? [0, face] : [face, 0]; // outward normal towards the aisle
-            targets.push({ x, z, h, n, ry });
+            targets.push({ x, z, h, n, ry, yi, alongX, ac: bMid + face * (sw / 2 + aisle / 2) });
           }
           for (let t = 0; t < h; t++) {
             if (is40) {
@@ -598,10 +602,34 @@ export function buildDepot(M, ancillary) {
   // ===========================================================================
   // 4. Reach stackers working in the yards (pick / place loop)
   // ===========================================================================
-  const nRS = Math.min(D.reachStackers, targets.length);
-  // spread the stackers over the yards: take every k-th candidate
-  const chosen = [];
-  for (let i = 0; i < nRS; i++) chosen.push(targets[Math.floor(((i + 0.5) * targets.length) / nRS)]);
+  // 4a. aisle services: yards between roads A and B, aisles running east-west, away from the facility strip
+  const xAr = m(C.yardRoads.filter((r) => r.dir === 'ns')[1].x), xBr = m(C.yardRoads.filter((r) => r.dir === 'ns')[0].x);
+  const between = (yi) => m(D.yards[yi].x0) > xAr && m(D.yards[yi].x1) < xBr;
+  const aisles = new Map();
+  for (const t of targets) {
+    if (!t.alongX || !between(t.yi)) continue;
+    if (stripEnd[t.yi] !== undefined && t.ac < stripEnd[t.yi] + 5) continue;
+    const key = `${t.yi}:${Math.round(t.ac)}`;
+    if (!aisles.has(key)) aisles.set(key, []);
+    aisles.get(key).push(t);
+  }
+  const aisleKeys = [...aisles.keys()];
+  const nAisle = Math.min(D.aisleServices, aisleKeys.length);
+  const serviced = [];
+  for (let i = 0; i < nAisle; i++) {
+    const list = aisles.get(aisleKeys[Math.floor(((i + 0.5) * aisleKeys.length) / nAisle)]);
+    list.sort((a, b) => a.x - b.x);
+    const t = list[Math.floor(list.length / 2)];
+    t.service = true;
+    serviced.push(t);
+  }
+  const usedAisles = new Set(serviced.map((t) => `${t.yi}:${Math.round(t.ac)}`));
+  // other stackers: spread over the remaining candidates (not in a serviced aisle)
+  const rest = targets.filter((t) => !t.service && !usedAisles.has(`${t.yi}:${Math.round(t.ac)}`));
+  const nFree = Math.min(Math.max(0, D.reachStackers - serviced.length), rest.length);
+  const chosen = [...serviced];
+  for (let i = 0; i < nFree; i++) chosen.push(rest[Math.floor(((i + 0.5) * rest.length) / nFree)]);
+  const nRS = chosen.length;
   const rsBody = new PartSet(yard, mergedParts(stackerBody()), (k) => reachMaterial(M, k), nRS);
   const rsSpread = new PartSet(yard, mergedParts(spreaderParts()), (k) => reachMaterial(M, k), nRS);
   const unit = new THREE.BoxGeometry(1, 1, 1).translate(0.5, 0, 0);
@@ -616,7 +644,8 @@ export function buildDepot(M, ancillary) {
     placed.color(i, 'container', col);
     // facing: the stacker stands in the aisle and looks back at the block (-normal)
     const fx = -t.n[0], fz = -t.n[1];
-    return { t, fx, fz, ry: Math.atan2(-fz, fx), phase: rand() * 52, placedM: trs(t.x, Y_YARD + t.h * TIER, t.z, t.ry) };
+    // stackers with a truck lane behind them travel less, so the lane stays clear
+    return { t, fx, fz, ry: Math.atan2(-fz, fx), phase: rand() * 52, travel: t.service ? 2.5 : 6, placedM: trs(t.x, Y_YARD + t.h * TIER, t.z, t.ry) };
   });
 
   const _m = new THREE.Matrix4(), _c = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _s = new THREE.Vector3(1, 1, 1);
@@ -626,7 +655,7 @@ export function buildDepot(M, ancillary) {
     const half = p % 26;
     const placing = p < 26;
     const Ht = (st.t.h + 1) * TIER + 0.25; // spreader resting on the target tier
-    const D0 = 6; // travel between the working and the waiting position
+    const D0 = st.travel; // travel between the working and the waiting position
     let d = 0, H = RS.low, hold;
     const seg = (a, b) => smooth(clamp((half - a) / (b - a), 0, 1));
     d = D0 * (seg(0, 5) - seg(19, 24));
@@ -692,8 +721,31 @@ export function buildDepot(M, ancillary) {
     [[-420, n3], [xB, n3], [xB, zEW], [d1, zEW], [d1, -330]],
     [[d1, 330], [d1, zEW], [xA, zEW], [xA, n1], [-40, n1]],
   ].map((pts) => new Path(fillet(offsetRight(pts, 4.3), 11)));
+  const nRoadRoutes = routes.length;
+  // aisle service routes: in from road A, along the aisle behind the stacker, out via road B
+  const RIGHT = 4.3;
+  const aisleStops = [];
+  for (const t of serviced) {
+    const laneZ = t.z + t.n[1] * 19.2; // far side of the aisle, clear of the stacker's counterweight
+    const zc = laneZ - RIGHT; // travelling +x: the right-hand offset moves the lane to +z
+    const south = t.z > zEW;
+    const pts = south
+      ? [[-420, n3], [xA, n3], [xA, zc], [xB, zc], [xB, n3], [-40, n3]]
+      : [[d1, -330], [d1, zEW], [xA, zEW], [xA, zc], [xB, zc], [xB, n3], [-40, n3]];
+    const P = new Path(fillet(offsetRight(pts, RIGHT), 11));
+    // stop with the trailer beside the stacker: nearest lane point + distance front bumper -> trailer centre
+    let best = Infinity, bs = 0;
+    const q = { x: 0, z: 0 };
+    for (let s = 0; s < P.len; s += 0.5) {
+      P.at(s, q);
+      const dd = Math.hypot(q.x - t.x, q.z - laneZ);
+      if (dd < best) (best = dd), (bs = s);
+    }
+    aisleStops.push({ s: bs + LC + LT / 2, wait: 14, toggle: true });
+    routes.push(P);
+  }
   // where each route passes a gate: stop there briefly (front bumper at the booth line)
-  const stops = routes.map((P) => {
+  const stops = routes.map((P, ri) => {
     const out = [];
     for (const g of gates) {
       let best = Infinity, bs = 0;
@@ -706,20 +758,28 @@ export function buildDepot(M, ancillary) {
           bs = s;
         }
       }
-      if (best < 9) out.push(bs + 3);
+      if (best < 9) out.push({ s: bs + 3, wait: 2.5 });
     }
-    return out.sort((a, b) => a - b);
+    if (ri >= nRoadRoutes) out.push(aisleStops[ri - nRoadRoutes]);
+    return out.sort((a, b) => a.s - b.s);
   });
-  const nT = D.yardTrucks;
+  const routeOf = [];
+  for (let i = 0; i < D.yardTrucks; i++) routeOf.push(i % nRoadRoutes);
+  for (let a = 0; a < serviced.length; a++) for (let k = 0; k < D.trucksPerAisle; k++) routeOf.push(nRoadRoutes + a);
+  const nT = routeOf.length;
   const tr = mergedParts(tractorParts());
   const tl = mergedParts(trailerParts());
   const trucksT = new PartSet(yard, tr, (k) => partMaterial(M, k), nT, { colorKey: 'cab' });
   const trucksL = new PartSet(yard, tl, (k) => partMaterial(M, k), nT, { colorKey: 'container' });
   const trucks = [];
+  const perRoute = {};
+  routeOf.forEach((r) => (perRoute[r] = (perRoute[r] || 0) + 1));
+  const seen = {};
   for (let i = 0; i < nT; i++) {
-    const r = i % routes.length;
+    const r = routeOf[i];
     const P = routes[r];
-    trucks.push({ r, s: LTOT + ((Math.floor(i / routes.length) + (r * 0.37) % 1) / Math.ceil(nT / routes.length)) * (P.len - LTOT), wait: 0, stopped: new Set(), laden: rand() < 0.75 });
+    const k = (seen[r] = (seen[r] || 0) + 1) - 1;
+    trucks.push({ r, s: LTOT + ((k + (r * 0.37) % 1) / perRoute[r]) * (P.len - LTOT), wait: 0, toggleAt: -1, stopped: new Set(), laden: rand() < 0.6 });
     trucksT.color(i, 'cab', new THREE.Color(pick(CONFIG.trucks.cabColors)));
     trucksL.color(i, 'container', colorOf());
   }
@@ -729,22 +789,32 @@ export function buildDepot(M, ancillary) {
     const v = D.yardTruckSpeed;
     trucks.forEach((t, i) => {
       const P = routes[t.r];
-      if (t.wait > 0) t.wait -= dt;
-      else {
-        // slow down before a gate stop, then wait at the booth
-        const next = stops[t.r].find((s) => s > t.s && !t.stopped.has(s));
-        let k = 1;
-        if (next !== undefined) k = clamp((next - t.s) / 25, 0.12, 1);
+      if (t.wait > 0) {
+        t.wait -= dt;
+        // the reach stacker takes the container off (or puts one on) halfway through the stop
+        if (t.toggleAt >= 0 && t.wait < t.toggleAt) {
+          t.laden = !t.laden;
+          t.toggleAt = -1;
+        }
+      } else {
+        // keep a gap to the truck ahead on the same route
+        let gap = Infinity;
+        for (const o of trucks) if (o !== t && o.r === t.r && o.s > t.s) gap = Math.min(gap, o.s - LTOT - t.s);
+        // slow down before a stop (gate booth or stacker), then wait
+        const next = stops[t.r].find((q) => q.s > t.s && !t.stopped.has(q));
+        let k = clamp((gap - 6) / 12, 0, 1);
+        if (next !== undefined) k = Math.min(k, clamp((next.s - t.s) / 25, 0.12, 1));
         t.s += v * k * dt;
-        if (next !== undefined && t.s >= next) {
-          t.s = next;
-          t.wait = 2.5;
+        if (next !== undefined && t.s >= next.s) {
+          t.s = next.s;
+          t.wait = next.wait + (next.toggle ? rand() * 6 : 0);
+          t.toggleAt = next.toggle ? t.wait / 2 : -1;
           t.stopped.add(next);
         }
         if (t.s > P.len) {
           t.s = LTOT;
           t.stopped.clear();
-          t.laden = rand() < 0.75;
+          t.laden = t.r >= nRoadRoutes ? rand() < 0.5 : rand() < 0.75;
         }
       }
       P.at(t.s, pF);
@@ -779,7 +849,7 @@ export function buildDepot(M, ancillary) {
   }
   update(0);
 
-  return { statics, yard, anchors, update, stackers, officeGlass: officeGlassMat, stats: { containers: m20.length + m40.length, stackers: nRS, trucks: nT } };
+  return { statics, yard, anchors, update, stackers, debug: { trucks, stops, routes, nRoadRoutes }, officeGlass: officeGlassMat, stats: { containers: m20.length + m40.length, stackers: nRS, aisleServices: serviced.length, trucks: nT } };
 }
 
 /** Offset an axis-aligned polyline to the right of the travel direction (right-hand traffic). */

@@ -71,7 +71,6 @@ export const CONFIG = {
       { dir: 'ew', z: 31000, width: 15000 },
       { dir: 'ns', x: -195000, width: 22500 },
       { dir: 'ns', x: -343000, width: 15000 },
-      { dir: 'ew', z: -181000, width: 15000, x0: -343000 },
     ],
     // Landscaped park in the NW corner of the yard (to the D1 road). East edge per master plan REV02.
     greenNW: { x0: -545000, x1: -409000, z0: -191750, z1: 6000 },
@@ -206,7 +205,7 @@ export const CONFIG = {
     stackRowsX: [-63300, -60500, -57700, -54900],
     stackMaxHigh: [3, 2, 1, 1], // rows under the canopy stay one high
     // u (from the north end) of the bays served by the 5 reach stackers
-    reachStackers: [75250, 99250, 147250, 255250, 303250],
+    reachStackers: [99250, 255250],
     reachStackerX: -72000, // chassis centre; the boom points east to the stacks
     // container trucks parked parallel to the facade, cab to the north (x = lane centre, z = truck centre)
     parallelTrucks: [
@@ -233,14 +232,14 @@ export const CONFIG = {
       // `outline` paints a coloured line around the next block row to mark it.
       {
         name: 'Container yard',
-        x0: -335500, x1: -206250, z0: -173500, z1: 23500, dir: 'x',
+        x0: -335500, x1: -206250, z0: -190750, z1: 23500, dir: 'x', // north edge on the fence (road N1)
         strip: 'wash',
         outline: { label: 'Containers MNR done', color: '#1e7bff' },
       },
       { name: 'Empty container yard', x0: -335500, x1: -206250, z0: 38500, z1: 191750, dir: 'x' },
       {
         name: 'Container yard',
-        x0: -183750, x1: -80000, z0: -173500, z1: 23500, dir: 'x',
+        x0: -183750, x1: -80000, z0: -190750, z1: 23500, dir: 'x',
         strip: 'mnr',
         outline: { label: 'Containers awaiting MNR', color: '#ff9800' },
       },
@@ -267,8 +266,12 @@ export const CONFIG = {
     ],
     // Office building (3 floors) facing road N3, west of the N3 gate
     office: { x0: -262000, x1: -216000, z0: 138000, z1: 174000, floors: 3, compound: { x0: -272000, x1: -207000, z0: 126000, z1: 191000 } },
-    reachStackers: 7, // working in the container yards (pick and place loop)
-    yardTrucks: 10, // container trucks driving through the gates and yard roads
+    reachStackers: 16, // working in the container yards (pick and place loop)
+    yardTrucks: 14, // container trucks driving through the gates and yard roads
+    // aisles where container trucks drive in, stop next to a working reach stacker to drop off or pick up
+    // a container, and drive out again (yards between roads A and B only)
+    aisleServices: 5,
+    trucksPerAisle: 2,
     yardTruckSpeed: 8.5, // m/s
   },
 
